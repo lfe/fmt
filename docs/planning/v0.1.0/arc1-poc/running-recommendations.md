@@ -34,6 +34,9 @@ because the current slice is moving on.
   constructs workloads likely to force all-tainted or mostly-tainted resolution:
   very narrow widths, many nested choices, long s-expression lists, and deeply
   nested forms whose flat alternatives repeatedly overflow.
+- **Current plan:** `slice4-pathological-stress-corpus` is planned to exercise
+  this risk with forced no-fit rows, narrow widths, tainted/badness counters, and
+  timeout-safe benchmark execution.
 - **Re-entry trigger:** Before relying on the PoC for large generated LFE files,
   macro-heavy forms, or formatter-wide performance claims.
 
@@ -120,6 +123,9 @@ because the current slice is moving on.
   macro/quasiquote forms, long `let` binding lists, long function calls, nested
   `case`/`receive` clauses, and generic sexps with no special knowledge-layer
   help.
+- **Current plan:** `slice4-pathological-stress-corpus` is planned to implement
+  this as a deterministic corpus plus `bench/results/lfe_stress.csv`, with
+  stable structural counters prioritized over timing.
 - **Re-entry trigger:** After the first LFE knowledge-layer slice, or before
   claiming algorithmic feasibility for broad LFE formatting.
 
