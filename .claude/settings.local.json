@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/oubiwann/.claude/skills/erlang-guidelines/**)"
+    ]
+  }
+}
