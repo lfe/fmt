@@ -1,18 +1,22 @@
 #!/usr/bin/env escript
-%%! -pa _build/default/lib/fmt/ebin
+%%! -pa _build/default/lib/fmt/ebin -pa _build/test/lib/fmt/ebin -pa _build/test/lib/fmt/test
 %%% -*- erlang -*-
 %%%
-%%% pe_bench — the experiment harness for arc1-poc / slice1-resolver.
+%%% pe_bench — the experiment harness for arc1-poc.
 %%%
-%%% Produces the numbers we analyse next: threaded-map vs ETS vs process-
-%%% dictionary for the resolver's memo, across synthetic S-expression-like
-%%% documents (depth x breadth, with sharing and a `group' at each level), plus
-%%% the mk(n) linearity series. It draws no conclusions — it emits the table.
+%%% Default mode (slice1): threaded-map vs ETS vs process-dictionary for the
+%%% resolver's memo, across synthetic S-expression-like documents, plus the
+%%% mk(n) linearity series.
 %%%
-%%% Run from the repo root after `rebar3 compile`:
 %%%     rebar3 compile && escript bench/pe_bench
 %%%
-%%% Output: a table to stdout and a CSV copy under bench/results/.
+%%% LFE mode (slice2): resolve+render the 20 real-LFE-shaped fixtures at widths
+%%% 80 and 100. Needs the test profile compiled (e.g. `rebar3 eunit`) so the
+%%% pe_lfe_samples / pe_lfe_bench beams are on the path.
+%%%
+%%%     rebar3 eunit && escript bench/pe_bench lfe
+%%%
+%%% It draws no conclusions — it emits the tables and CSVs under bench/results/.
 
 -mode(compile).
 
@@ -22,6 +26,15 @@
 -define(LIMIT, 100).
 -define(REPEATS, 7).
 
+main(["lfe"]) ->
+    case code:ensure_loaded(pe_lfe_bench) of
+        {module, pe_lfe_bench} ->
+            pe_lfe_bench:run();
+        _ ->
+            io:format("error: LFE sample beams not found.~n"),
+            io:format("run `rebar3 eunit` first (compiles the test profile).~n"),
+            halt(1)
+    end;
 main(_Args) ->
     case code:ensure_loaded(pe_resolve) of
         {module, pe_resolve} ->

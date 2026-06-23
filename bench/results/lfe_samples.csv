@@ -1,0 +1,41 @@
+id,label,width,time_us,memo_size,calls,tainted,badness,height,bytes,lines
+lfe_01_ackermann,ackermann/2 multi-clause defun,80,329,513,611,21,0,3,119,4
+lfe_02_fizz,fizz/3 string clauses,80,134,280,363,0,0,0,79,1
+lfe_03_buzz1,buzz1/1 guarded head,80,150,279,317,0,0,0,59,1
+lfe_04_tail_buzz,tail-buzz/2 tail recursion,80,221,421,484,19,0,2,118,3
+lfe_05_plusplus,++ macro with quasiquote/rest,80,166,330,374,0,0,0,71,1
+lfe_06_cond,cond macro expanding to if,80,340,533,612,22,0,3,143,4
+lfe_07_bq_expand,bq-expand inside eval-when-compile,80,578,792,914,122,0,8,415,9
+lfe_08_ets_new,ets-demo new/0 with match-lambda,80,341,655,742,116,0,7,285,8
+lfe_09_by_place_ms,by_place_ms/2 match-spec,80,196,395,443,28,0,1,91,2
+lfe_10_mnesia_new,mnesia-demo new/0 transaction,80,287,400,443,95,0,5,201,6
+lfe_11_guess_server,guess-server/1 receive loop,80,317,554,616,106,0,7,181,8
+lfe_12_ping_pong,ping-pong gen_server callbacks,80,378,541,619,94,0,4,183,5
+lfe_13_get_page,get-page/1 async httpc,80,556,869,995,101,0,5,223,6
+lfe_14_fish_closure,fish-class/3 closure object,80,306,566,632,96,0,6,215,7
+lfe_15_fish_process,fish-class/3 process loop,80,305,533,612,83,0,4,211,5
+lfe_16_account,account-class/3 cond receive,80,618,816,925,175,0,7,288,8
+lfe_17_eval_expr,eval-expr/2 central case,80,535,866,999,100,0,7,279,8
+lfe_18_parse_bitspecs,parse-bitspecs/3 let/case nesting,80,542,717,822,102,0,5,218,6
+lfe_19_eval_lambda,eval-lambda/2 arity dispatch,80,478,616,753,26,0,4,209,5
+lfe_20_eval_receive,eval-receive/2 fletrec + after,80,406,609,694,172,0,8,294,9
+lfe_01_ackermann,ackermann/2 multi-clause defun,100,335,543,643,29,0,3,119,4
+lfe_02_fizz,fizz/3 string clauses,100,130,280,363,0,0,0,79,1
+lfe_03_buzz1,buzz1/1 guarded head,100,139,279,317,0,0,0,59,1
+lfe_04_tail_buzz,tail-buzz/2 tail recursion,100,267,458,524,32,0,2,118,3
+lfe_05_plusplus,++ macro with quasiquote/rest,100,155,330,374,0,0,0,71,1
+lfe_06_cond,cond macro expanding to if,100,324,555,635,24,0,3,143,4
+lfe_07_bq_expand,bq-expand inside eval-when-compile,100,512,892,1022,95,0,6,361,7
+lfe_08_ets_new,ets-demo new/0 with match-lambda,100,456,738,833,139,0,6,260,7
+lfe_09_by_place_ms,by_place_ms/2 match-spec,100,195,404,452,0,0,0,89,1
+lfe_10_mnesia_new,mnesia-demo new/0 transaction,100,234,484,533,78,0,3,147,4
+lfe_11_guess_server,guess-server/1 receive loop,100,316,606,673,76,0,4,157,5
+lfe_12_ping_pong,ping-pong gen_server callbacks,100,368,588,670,83,0,3,177,4
+lfe_13_get_page,get-page/1 async httpc,100,619,963,1097,107,0,5,223,6
+lfe_14_fish_closure,fish-class/3 closure object,100,382,648,720,121,0,6,215,7
+lfe_15_fish_process,fish-class/3 process loop,100,329,583,665,77,0,4,211,5
+lfe_16_account,account-class/3 cond receive,100,673,934,1053,169,0,6,276,7
+lfe_17_eval_expr,eval-expr/2 central case,100,598,947,1085,93,0,7,279,8
+lfe_18_parse_bitspecs,parse-bitspecs/3 let/case nesting,100,570,824,938,137,0,5,218,6
+lfe_19_eval_lambda,eval-lambda/2 arity dispatch,100,429,641,780,28,0,4,209,5
+lfe_20_eval_receive,eval-receive/2 fletrec + after,100,361,667,755,150,0,6,254,7
