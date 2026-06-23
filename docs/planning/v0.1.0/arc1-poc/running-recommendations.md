@@ -71,9 +71,9 @@ because the current slice is moving on.
 - **Concern:** Slice1 intentionally stopped at the cost/measure resolver layer:
   no rendering, no public facade, no real-LFE-shaped inputs.
 - **Recommendation:** Continue requiring end-to-end real-input checks in later
-  slices. Slice2 added rendering, facade APIs, and 20 real-LFE-shaped fixtures;
-  slice3 should move from hand-modeled fixture specs toward an LFE knowledge
-  layer and eventually parser-derived forms.
+  slices. Slice2 added rendering, facade APIs, and 20 real-LFE-shaped fixtures.
+  Slice3 moved the corpus through an explicit LFE knowledge layer; future slices
+  should move toward parser-derived forms and source-fidelity evidence.
 - **Re-entry trigger:** Any new engine or layout feature that is only validated
   against symbolic documents.
 
@@ -94,7 +94,7 @@ because the current slice is moving on.
 
 ### A1-R006: Build an LFE knowledge layer; do not rely on generic s-expression layout
 
-- **Status:** open
+- **Status:** addressed by slice3, keep watching
 - **Source:** Slice2 review and benchmark output inspection.
 - **Concern:** The engine handled the 20 fixtures well, but generic `sexp`
   alignment drifts too far right for some Lisp forms. `lfe_07_bq_expand` is the
@@ -139,7 +139,7 @@ because the current slice is moving on.
 
 ### A1-R009: Harden the benchmark harness against worker crashes
 
-- **Status:** open
+- **Status:** addressed by slice3
 - **Source:** Slice2 implementation review.
 - **Concern:** The benchmark uses a fresh spawned process per repeat, which is
   good timing hygiene, but a crashing worker would leave the parent waiting for
@@ -152,7 +152,7 @@ because the current slice is moving on.
 
 ### A1-R010: Avoid small avoidable allocations in benchmark-side metrics
 
-- **Status:** watch
+- **Status:** addressed by slice3
 - **Source:** Slice2 implementation review.
 - **Concern:** `pe_lfe_bench:count_char/2` currently counts newlines by building
   a list and taking its length. The current binaries are tiny, so this is not a
@@ -165,7 +165,7 @@ because the current slice is moving on.
 
 ### A1-R011: Keep fixture fidelity limits visible
 
-- **Status:** watch
+- **Status:** addressed by slice3
 - **Source:** Slice2 fixture review.
 - **Concern:** `pe_lfe_samples` is intentionally a hand-built spec interpreter
   over real-LFE-shaped forms. That was the right slice2 tradeoff, but the outputs
@@ -179,7 +179,7 @@ because the current slice is moving on.
 
 ### A1-R012: CSV escaping is fine for current labels, but should not become a hidden assumption
 
-- **Status:** watch
+- **Status:** addressed by slice3
 - **Source:** Slice2 benchmark review.
 - **Concern:** The current benchmark CSV writer emits binary fields directly
   without CSV quoting. The current labels are controlled and comma-free, so this
@@ -190,3 +190,48 @@ because the current slice is moving on.
 - **Re-entry trigger:** Expanding sample metadata, importing labels from source
   files, or consuming CSVs with stricter tooling.
 
+## Slice 3: LFE Knowledge Layer
+
+### A1-R013: Add context-sensitive layout for special forms in argument position
+
+- **Status:** open
+- **Source:** Slice3 CDC verification of `lfe_08_ets_new`.
+- **Concern:** Slice3 fixed the top-level `eval-when-compile` drift, but a
+  special form used as a call argument still inherits generic argument
+  alignment. The visible case is `(lists:foreach (match-lambda ...) ...)`,
+  where `match-lambda` aligns under the `lists:foreach` argument column and its
+  body shifts right.
+- **Recommendation:** Add a knowledge-layer rule or combinator for block-valued
+  arguments: when an argument is itself a known block form (`lambda`,
+  `match-lambda`, `case`, `receive`, `cond`, etc.), allow it to break from the
+  call with a local block indentation rather than generic first-argument align.
+- **Re-entry trigger:** Next knowledge-layer refinement slice, especially before
+  judging visual quality on higher-order calls.
+
+### A1-R014: Give `flet`/`fletrec` function bindings clause-like layout
+
+- **Status:** open
+- **Source:** Slice3 CDC verification of `lfe_20_eval_receive`.
+- **Concern:** `fletrec` itself is recognized, but its function-definition
+  binding still formats through generic list layout. The result separates the
+  function name, arg list, and body in a way that is mechanically valid but not
+  yet the natural LFE shape for local function definitions.
+- **Recommendation:** Teach the knowledge layer a binding-shape rule for
+  `flet`/`fletrec`: bindings of the form `(name (args...) body...)` should lower
+  through the same clause/body machinery used by `defun`-style forms, with the
+  body nested under the local function head.
+- **Re-entry trigger:** Next knowledge-layer refinement slice, or any corpus
+  expansion involving local functions.
+
+### A1-R015: Move from hand-built `form()` terms toward parser-derived samples
+
+- **Status:** open
+- **Source:** Slice3 caveat checklist and CDC verification.
+- **Concern:** Slice3 is a real knowledge layer, but the corpus is still
+  hand-built `pe_lfe:form()` terms. It proves lowering and layout strategy, not
+  source fidelity, comment behavior, reader edge cases, or parser integration.
+- **Recommendation:** Add a later slice that builds `form()` terms from actual
+  LFE source or ASTs for at least a small fixture set. Keep source fidelity and
+  comment preservation as explicit questions rather than inferred properties.
+- **Re-entry trigger:** Before claiming this is an LFE formatter rather than a
+  knowledge-layer PoC.
