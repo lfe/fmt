@@ -1,5 +1,5 @@
 {application, fmt, [
-    {description, "An OTP library"},
+    {description, "A code formatter for LFE"},
     {vsn, "0.1.0"},
     {registered, []},
     {applications, [
