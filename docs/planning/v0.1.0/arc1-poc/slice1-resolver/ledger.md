@@ -22,12 +22,12 @@
 | A1S1-8  | [1a] `pe_measure` compose/adjust/dominates/`measure_term` correct | eunit `pe_measure_tests` | correctness | spec | done | 8 tests incl `measure_term_fig7` → last 1, cost `{8,3}` | |
 | A1S1-9  | [1a] `pe_mset` merge keeps Pareto invariant | PropEr `prop_mset_pareto` | correctness | spec | done | `rebar3 proper -m prop_pe_mset`: OK 100 tests | |
 | A1S1-10 | [1a] merge `Set>Tainted` + left-biased taint + lift | eunit `pe_mset_tests` | correctness | spec | done | 8 tests pass | |
-| A1S1-11 | [1b] resolver optimal cost `=:=` oracle, across widths | PropEr `prop_resolver_optimal` + CT | correctness | spec | open | | |
-| A1S1-12 | [1b] memo keeps `shared<>shared` linear in DAG size | CT `linearity_SUITE` | serious | spec | open | | |
-| A1S1-13 | [1b] 3 memo backends produce identical optimal measure | CT `memo_parity_SUITE` | correctness | spec | open | | |
-| A1S1-14 | [1b] `pe_memo_ets` private table created + deleted per call | eunit `ets_lifecycle_test` (`ets:info` before/after) | serious | spec | open | | |
-| A1S1-15 | [1b] harness emits `{backend,size,width,time,memo,calls,tainted,height}` table + linearity series under `bench/results/` | run escript; output present | serious | spec | open | | |
-| A1S1-16 | zero-warning compile + dialyzer clean | `rebar3 compile`; `rebar3 dialyzer` | serious | spec | open | | |
+| A1S1-11 | [1b] resolver optimal cost `=:=` oracle, across widths | PropEr `prop_resolver_optimal` + CT | correctness | spec | done | `rebar3 proper -m prop_pe_resolve`: OK 300 tests; pe_resolve_tests concrete optima | |
+| A1S1-12 | [1b] memo keeps `shared<>shared` linear in DAG size | CT `linearity_SUITE` | serious | spec | done | memo/calls plateau +1/level (37→46 for n=7→14), within `(n+1)(W+1)` bound | |
+| A1S1-13 | [1b] 3 memo backends produce identical optimal measure | CT `memo_parity_SUITE` | correctness | spec | done | full-measure equality across 5 docs × 7 widths | |
+| A1S1-14 | [1b] `pe_memo_ets` private table created + deleted per call | eunit `ets_lifecycle_test` (`ets:info` before/after) | serious | spec | done | `ets:all()` count unchanged after call + after mid-call crash | |
+| A1S1-15 | [1b] harness emits `{backend,size,width,time,memo,calls,tainted,height}` table + linearity series under `bench/results/` | run escript; output present | serious | spec | done | `escript bench/pe_bench` → stdout tables + `bench/results/{sweep,linearity}.csv` | |
+| A1S1-16 | zero-warning compile + dialyzer clean | `rebar3 compile`; `rebar3 dialyzer` | serious | spec | done | compile zero-warning (warnings_as_errors); dialyzer 12 files clean; xref clean | |
 | A1S1-17 | OTP 22–29 compatibility | n/a | polish | spec | deferred | | re-entry: backport slice; `%% OTP28+` markers in place |
 | A1S1-18 | coverage gate + CAP strength audit | n/a | serious | spec | deferred | | re-entry: post-slice1 strength-analysis phase (operator-run) |
 
@@ -58,10 +58,37 @@ not support a stated requirement. Flagged here for CDC.
    provided. `pe_measure` gains accessors (`last`/`cost`/`doc`) and resolver
    leaf constructors (`text_leaf`/`nl_leaf`).
 
+## Known caveat (disclosed, not a silent drop)
+
+The resolver's **search** is linear/bounded as required (A1S1-12: memo & calls
+plateau). But `resolve/2` finally calls `optimal/1`, which on an *all-tainted*
+document forces the tainted thunk — a leftmost widening that is `O(tree size)`,
+i.e. `O(2^n)` for `mk(n)`. This shows up as growing `time_us` in the linearity
+series even though `memo`/`calls` stay flat. It is the unavoidable cost of
+producing one concrete measure for a document with no fitting layout, and it is
+paid at most once. The proper fix (memoised `leftmost` / fused resolve-render,
+Appendix C) is **slice2's perf concern** — flagged here, not hidden. Normal
+inputs (a fitting layout exists) return a `Set` and never force.
+
 ## What Worked
 
-_(Filled in at slice close.)_
+- **Bottom-up, test-as-you-go.** Each module landed green before the next
+  (`pe_doc` → `pe_cost` → `pe_measure` → `pe_mset` → oracle → `pe_memo` →
+  `pe_resolve`), so the resolver was built on a verified substrate.
+- **Reading the figures, not re-deriving.** Pulling Figs. 6–7 and 12–15 from
+  the PDF directly settled the two subtle points (the `LineM` indentation cost;
+  the delay-beyond-W that makes sharing linear) before any code was written.
+- **Differential oracle.** `prop_resolver_optimal` against a brute-force
+  widen→measure→min oracle (300 cases) is the high-leverage correctness gate —
+  it would catch any merge/dedup/compose error the eunit examples miss.
+- **One resolver, three backends.** Threading a memo handle (immutable for map,
+  constant-with-mutation for ets/pd) gave a genuine apples-to-apples comparison
+  and a parity test for free.
 
 ## Closure
 
-_(Filled in at slice close: commit SHA, date, CDC verification, row tallies.)_
+Closed at commit <slice1b SHA> on 2026-06-22. CDC verification: pending
+(operator-run). Total rows: 18. Done: 16. Deferred: 2 (A1S1-17 OTP 22–29
+backport; A1S1-18 coverage gate + CAP audit). No-op: 0.
+
+Slice1a checkpoint: commit 95ecbc2 (rows A1S1-1..10).

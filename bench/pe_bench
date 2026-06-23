@@ -1,0 +1,206 @@
+#!/usr/bin/env escript
+%%! -pa _build/default/lib/fmt/ebin
+%%% -*- erlang -*-
+%%%
+%%% pe_bench — the experiment harness for arc1-poc / slice1-resolver.
+%%%
+%%% Produces the numbers we analyse next: threaded-map vs ETS vs process-
+%%% dictionary for the resolver's memo, across synthetic S-expression-like
+%%% documents (depth x breadth, with sharing and a `group' at each level), plus
+%%% the mk(n) linearity series. It draws no conclusions — it emits the table.
+%%%
+%%% Run from the repo root after `rebar3 compile`:
+%%%     rebar3 compile && escript bench/pe_bench
+%%%
+%%% Output: a table to stdout and a CSV copy under bench/results/.
+
+-mode(compile).
+
+-define(BACKENDS, [pe_memo_map, pe_memo_ets, pe_memo_pd]).
+-define(SIZES, [{2, 2}, {3, 2}, {3, 3}, {4, 2}, {4, 3}, {5, 2}]).
+-define(WIDTHS, [40, 80]).
+-define(LIMIT, 100).
+-define(REPEATS, 7).
+
+main(_Args) ->
+    case code:ensure_loaded(pe_resolve) of
+        {module, pe_resolve} ->
+            run();
+        _ ->
+            io:format("error: engine beams not found.~n"),
+            io:format("run `rebar3 compile` first, from the repo root.~n"),
+            halt(1)
+    end.
+
+run() ->
+    SweepRows = sweep(),
+    LinRows = linearity_series(),
+    print_sweep(SweepRows),
+    print_linearity(LinRows),
+    ok = filelib:ensure_dir("bench/results/"),
+    write_csv("bench/results/sweep.csv", sweep_header(), SweepRows),
+    write_csv("bench/results/linearity.csv", linearity_header(), LinRows),
+    io:format("~nWrote bench/results/sweep.csv and bench/results/linearity.csv~n").
+
+%%%-------------------------------------------------------------------
+%%% Sweep: {backend, size, width} -> {time, memo, calls, tainted, height}
+%%%-------------------------------------------------------------------
+
+sweep() ->
+    [
+        sweep_one(Backend, Depth, Breadth, Width)
+     || {Depth, Breadth} <- ?SIZES,
+        Width <- ?WIDTHS,
+        Backend <- ?BACKENDS
+    ].
+
+sweep_one(Backend, Depth, Breadth, Width) ->
+    {Dag, DagSize} = sexp_dag(Depth, Breadth),
+    Opts = #{cost => pe_cost_squared, memo => Backend, width => Width, limit => ?LIMIT},
+    {TimeUs, {Measure, Stats}} = best_of(?REPEATS, fun() -> pe_resolve:resolve(Dag, Opts) end),
+    #{memo_size := Memo, calls := Calls, tainted := Tainted} = Stats,
+    {_Badness, Height} = pe_measure:cost(Measure),
+    #{
+        backend => Backend,
+        dag_size => DagSize,
+        depth => Depth,
+        breadth => Breadth,
+        width => Width,
+        time_us => TimeUs,
+        memo_size => Memo,
+        calls => Calls,
+        tainted => Tainted,
+        height => Height
+    }.
+
+%% Best (minimum) wall-clock over N repeats, to suppress scheduler noise.
+best_of(N, Fun) ->
+    Runs = [timer:tc(Fun) || _ <- lists:seq(1, N)],
+    {Times, _} = lists:unzip(Runs),
+    {_T, Result} = hd(Runs),
+    {lists:min(Times), Result}.
+
+%%%-------------------------------------------------------------------
+%%% Linearity series: mk(n) memo/calls vs DAG size
+%%%-------------------------------------------------------------------
+
+linearity_series() ->
+    Opts = #{cost => pe_cost_squared, memo => pe_memo_map, width => 16, limit => 16},
+    [
+        begin
+            {Dag, DagSize} = mk_dag(N),
+            {TimeUs, {_M, Stats}} = best_of(?REPEATS, fun() -> pe_resolve:resolve(Dag, Opts) end),
+            #{
+                n => N,
+                dag_size => DagSize,
+                time_us => TimeUs,
+                memo_size => maps:get(memo_size, Stats),
+                calls => maps:get(calls, Stats),
+                tainted => maps:get(tainted, Stats)
+            }
+        end
+     || N <- lists:seq(1, 14)
+    ].
+
+%%%-------------------------------------------------------------------
+%%% Document generators
+%%%-------------------------------------------------------------------
+
+%% A synthetic S-expression: at each level, a `group' of an aligned, vertically
+%% concatenated list of `Breadth' children — all the same shared sub-document,
+%% so the DAG stays small while the tree is large.
+sexp_dag(Depth, Breadth) ->
+    {Root, B} = sexp(Depth, Breadth, pe_doc:new()),
+    Dag = pe_doc:freeze(B, Root),
+    {Dag, pe_doc:size(Dag)}.
+
+sexp(0, _Breadth, B) ->
+    pe_doc:text(<<"atom">>, B);
+sexp(Depth, Breadth, B0) ->
+    {Child, B1} = sexp(Depth - 1, Breadth, B0),
+    {Body, B2} = vconcat_n(Child, Breadth, B1),
+    {Open, B3} = pe_doc:text(<<"(">>, B2),
+    {Close, B4} = pe_doc:text(<<")">>, B3),
+    {Aligned, B5} = pe_doc:align(Body, B4),
+    {Inner, B6} = pe_doc:concat(Open, Aligned, B5),
+    {Listed, B7} = pe_doc:concat(Inner, Close, B6),
+    pe_doc:group(Listed, B7).
+
+vconcat_n(Child, 1, B) ->
+    {Child, B};
+vconcat_n(Child, K, B0) ->
+    {Rest, B1} = vconcat_n(Child, K - 1, B0),
+    pe_doc:vconcat(Child, Rest, B1).
+
+%% mk(0) = "x"; mk(n) = shared <> shared (the paper's Example 6.3).
+mk_dag(N) ->
+    {Root, B} = mk(N, pe_doc:new()),
+    Dag = pe_doc:freeze(B, Root),
+    {Dag, pe_doc:size(Dag)}.
+
+mk(0, B) ->
+    pe_doc:text(<<"x">>, B);
+mk(N, B0) ->
+    {Id, B1} = mk(N - 1, B0),
+    pe_doc:concat(Id, Id, B1).
+
+%%%-------------------------------------------------------------------
+%%% Reporting
+%%%-------------------------------------------------------------------
+
+sweep_header() ->
+    [backend, dag_size, depth, breadth, width, time_us, memo_size, calls, tainted, height].
+
+linearity_header() ->
+    [n, dag_size, time_us, memo_size, calls, tainted].
+
+print_sweep(Rows) ->
+    io:format("~n== memo backend sweep (synthetic S-expressions, limit=~p) ==~n", [?LIMIT]),
+    io:format(
+        "~-12s ~8s ~6s ~8s ~6s ~10s ~10s ~8s ~8s ~7s~n",
+        ["backend", "dag", "width", "time_us", "memo", "calls", "tainted", "height", "depth", "brdth"]
+    ),
+    [print_sweep_row(R) || R <- Rows],
+    ok.
+
+print_sweep_row(R) ->
+    io:format(
+        "~-12s ~8b ~6b ~8b ~6b ~10b ~10b ~8b ~8b ~7b~n",
+        [
+            atom_to_list(maps:get(backend, R)),
+            maps:get(dag_size, R),
+            maps:get(width, R),
+            maps:get(time_us, R),
+            maps:get(memo_size, R),
+            maps:get(calls, R),
+            maps:get(tainted, R),
+            maps:get(height, R),
+            maps:get(depth, R),
+            maps:get(breadth, R)
+        ]
+    ).
+
+print_linearity(Rows) ->
+    io:format("~n== mk(n) linearity series (map backend, limit=16) ==~n", []),
+    io:format("~4s ~8s ~8s ~8s ~8s ~8s~n", ["n", "dag", "time_us", "memo", "calls", "tainted"]),
+    [
+        io:format("~4b ~8b ~8b ~8b ~8b ~8b~n", [
+            maps:get(n, R),
+            maps:get(dag_size, R),
+            maps:get(time_us, R),
+            maps:get(memo_size, R),
+            maps:get(calls, R),
+            maps:get(tainted, R)
+        ])
+     || R <- Rows
+    ],
+    ok.
+
+write_csv(Path, Header, Rows) ->
+    HeaderLine = lists:join(",", [atom_to_list(H) || H <- Header]),
+    DataLines = [lists:join(",", [field(maps:get(K, R)) || K <- Header]) || R <- Rows],
+    Content = lists:join("\n", [HeaderLine | DataLines]) ++ "\n",
+    ok = file:write_file(Path, Content).
+
+field(V) when is_atom(V) -> atom_to_list(V);
+field(V) when is_integer(V) -> integer_to_list(V).
