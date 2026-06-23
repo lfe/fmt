@@ -87,7 +87,7 @@ inputs (a fitting layout exists) return a `Set` and never force.
 
 ## Closure
 
-Closed at commit <slice1b SHA> on 2026-06-22. CDC verification: pending
+Closed at commit acc3878 on 2026-06-22. CDC verification: pending
 (operator-run). Total rows: 18. Done: 16. Deferred: 2 (A1S1-17 OTP 22–29
 backport; A1S1-18 coverage gate + CAP audit). No-op: 0.
 
