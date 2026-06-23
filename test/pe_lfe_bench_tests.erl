@@ -33,19 +33,21 @@ knowledge_row_count_test() ->
 %% A1S3-23: CSV fields with commas/quotes/newlines are escaped (quoted, inner
 %% quotes doubled); plain fields are left bare.
 csv_escaping_test() ->
-    Rows = [#{
-        id => demo,
-        label => <<"a,b \"c\"">>,
-        width => 80,
-        time_us => 1,
-        memo_size => 2,
-        calls => 3,
-        tainted => 0,
-        badness => 0,
-        height => 1,
-        bytes => 5,
-        lines => 1
-    }],
+    Rows = [
+        #{
+            id => demo,
+            label => <<"a,b \"c\"">>,
+            width => 80,
+            time_us => 1,
+            memo_size => 2,
+            calls => 3,
+            tainted => 0,
+            badness => 0,
+            height => 1,
+            bytes => 5,
+            lines => 1
+        }
+    ],
     Csv = pe_lfe_bench:to_csv(Rows),
     %% the label is quoted with its inner quotes doubled.
     ?assert(binary:match(Csv, <<"\"a,b \"\"c\"\"\"">>) =/= nomatch),
@@ -59,5 +61,72 @@ csv_header_and_count_test() ->
     Csv = pe_lfe_bench:to_csv(Rows),
     Lines = binary:split(Csv, <<"\n">>, [global, trim]),
     [Header | DataLines] = Lines,
-    ?assertEqual(<<"id,label,width,time_us,memo_size,calls,tainted,badness,height,bytes,lines">>, Header),
+    ?assertEqual(
+        <<"id,label,width,time_us,memo_size,calls,tainted,badness,height,bytes,lines">>, Header
+    ),
+    ?assertEqual(2, length(DataLines)).
+
+%% A1S4-16: stress CSV has the analysis-oriented header.
+stress_columns_test() ->
+    ?assertEqual(
+        [
+            id,
+            label,
+            category,
+            size,
+            width,
+            limit,
+            status,
+            time_us,
+            memo_size,
+            calls,
+            tainted,
+            badness,
+            height,
+            bytes,
+            lines,
+            dag_size
+        ],
+        pe_lfe_bench:stress_columns()
+    ).
+
+%% A1S4-16/20: a stress row carries every column and a deterministic DAG size.
+stress_row_shape_test() ->
+    Sample = pe_lfe_stress:by_id(<<"proper_list_24">>),
+    Row = pe_lfe_bench:stress_row(Sample, 40, 1000),
+    [?assert(maps:is_key(C, Row)) || C <- pe_lfe_bench:stress_columns()],
+    ?assertEqual(<<"proper_list_24">>, maps:get(id, Row)),
+    ?assertEqual(<<"proper-list">>, maps:get(category, Row)),
+    ?assertEqual(40, maps:get(width, Row)),
+    ?assertEqual(40, maps:get(limit, Row)),
+    ?assertEqual(ok, maps:get(status, Row)),
+    ?assert(maps:get(dag_size, Row) > 0),
+    ?assert(maps:get(bytes, Row) > 0).
+
+%% A1S4-17: 25 samples at the five required widths -> 125 rows.
+stress_row_count_test() ->
+    Rows = pe_lfe_bench:stress_rows(pe_lfe_stress:all(), [20, 40, 60, 80, 100], 1000),
+    ?assertEqual(125, length(Rows)).
+
+%% A1S4-18/19: monitored workers report timeout/error as tagged values.
+stress_monitored_timeout_test() ->
+    ?assertEqual(timeout, pe_lfe_bench:monitored(fun() -> receive
+        after 50 -> ok
+        end end, 1)).
+
+stress_monitored_error_test() ->
+    ?assertMatch({error, _}, pe_lfe_bench:monitored(fun() -> error(bad_stress_worker) end, 1000)).
+
+stress_csv_header_and_count_test() ->
+    Rows = pe_lfe_bench:stress_rows([pe_lfe_stress:by_id(<<"nofit_text_80">>)], [20, 40], 1000),
+    Csv = pe_lfe_bench:stress_to_csv(Rows),
+    Lines = binary:split(Csv, <<"\n">>, [global, trim]),
+    [Header | DataLines] = Lines,
+    ?assertEqual(
+        <<
+            "id,label,category,size,width,limit,status,time_us,memo_size,calls,tainted,"
+            "badness,height,bytes,lines,dag_size"
+        >>,
+        Header
+    ),
     ?assertEqual(2, length(DataLines)).

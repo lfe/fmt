@@ -1,0 +1,126 @@
+id,label,category,size,width,limit,status,time_us,memo_size,calls,tainted,badness,height,bytes,lines,dag_size
+proper_list_24,"proper list, 24 items",proper-list,24,20,20,ok,4957,100,123,14,0,23,135,24,127
+proper_list_48,"proper list, 48 items",proper-list,48,20,20,ok,260,172,219,14,0,47,279,48,247
+dotted_list_16,"dotted list, 16 prefixes",dotted-list,16,20,20,ok,110,81,97,14,0,16,95,17,94
+dotted_list_32,"dotted list, 32 prefixes",dotted-list,32,20,20,ok,164,129,161,14,0,32,191,33,174
+generic_call_24,"generic call, 24 args",generic-call,24,20,20,ok,119,91,115,8,0,23,447,24,131
+generic_call_48,"generic call, 48 args",generic-call,48,20,20,ok,254,163,211,8,0,47,903,48,251
+deep_sexp_8,"deep generic S-expression, depth 8",deep-sexp,8,20,20,ok,296,70,87,54,46656,0,236,1,284
+deep_sexp_12,"deep generic S-expression, depth 12",deep-sexp,12,20,20,ok,489,58,72,45,118336,0,364,1,424
+shared_concat_10,"direct shared concat DAG, depth 10",shared-dag,10,20,20,ok,467,12,12,11,126427536,0,11264,1,11
+shared_choice_8,"direct shared choice DAG, depth 8",shared-dag,8,20,20,ok,107,56,93,30,0,255,3071,256,34
+quote_tower_12,"quote/backquote/unquote tower, depth 12",quote-tower,12,20,20,ok,74,35,37,21,441,0,41,1,59
+quote_tower_18,"quote/backquote/unquote tower, depth 18",quote-tower,18,20,20,ok,78,46,48,27,729,0,47,1,65
+let_bindings_16,let with 16 bindings,binding-list,16,20,20,ok,1083,780,1186,78,0,34,540,35,595
+letstar_bindings_24,let* with 24 bindings,binding-list,24,20,20,ok,1525,1068,1674,221,0,51,827,52,851
+fletrec_bindings_12,fletrec with 12 local functions,binding-list,12,20,20,ok,766,590,862,130,0,48,839,49,525
+nested_case_8,"nested case clauses, depth 8",clause-form,8,20,20,ok,343,175,197,89,65536,0,276,1,272
+nested_receive_6,"nested receive clauses, depth 6",clause-form,6,20,20,ok,423,253,291,155,66049,0,277,1,351
+nested_cond_12,cond with 12 clauses,clause-form,12,20,20,ok,722,596,906,115,0,24,336,25,449
+block_arg_match_lambda,match-lambda as call argument,block-argument,8,20,20,ok,99,25,31,20,3364,0,78,1,85
+block_arg_lambda,lambda as call argument,block-argument,8,20,20,ok,70,34,41,26,676,0,46,1,48
+block_arg_case,case as call argument,block-argument,8,20,20,ok,103,59,67,40,1681,0,61,1,73
+block_arg_receive,receive as call argument,block-argument,8,20,20,ok,74,23,29,18,1764,0,62,1,69
+nofit_text_80,direct text wider than narrow limits,forced-nofit,80,20,20,ok,1,1,1,1,3600,0,80,1,1
+nofit_text_180,direct text much wider than normal width,forced-nofit,180,20,20,ok,3,1,1,1,25600,0,180,1,1
+tiny_width_call_30,generic call with 30 long atoms,forced-nofit,30,20,20,ok,132,10,12,9,656100,0,830,1,161
+proper_list_24,"proper list, 24 items",proper-list,24,40,40,ok,112,118,141,23,0,23,135,24,127
+proper_list_48,"proper list, 48 items",proper-list,48,40,40,ok,229,190,237,23,0,47,279,48,247
+dotted_list_16,"dotted list, 16 prefixes",dotted-list,16,40,40,ok,100,99,115,23,0,16,95,17,94
+dotted_list_32,"dotted list, 32 prefixes",dotted-list,32,40,40,ok,164,147,179,23,0,32,191,33,174
+generic_call_24,"generic call, 24 args",generic-call,24,40,40,ok,126,103,127,14,0,23,447,24,131
+generic_call_48,"generic call, 48 args",generic-call,48,40,40,ok,299,175,223,14,0,47,903,48,251
+deep_sexp_8,"deep generic S-expression, depth 8",deep-sexp,8,40,40,ok,343,128,159,96,38416,0,236,1,284
+deep_sexp_12,"deep generic S-expression, depth 12",deep-sexp,12,40,40,ok,504,122,152,93,104976,0,364,1,424
+shared_concat_10,"direct shared concat DAG, depth 10",shared-dag,10,40,40,ok,427,15,15,11,125978176,0,11264,1,11
+shared_choice_8,"direct shared choice DAG, depth 8",shared-dag,8,40,40,ok,140,114,229,20,0,85,2901,86,34
+quote_tower_12,"quote/backquote/unquote tower, depth 12",quote-tower,12,40,40,ok,97,99,107,2,0,1,62,2,59
+quote_tower_18,"quote/backquote/unquote tower, depth 18",quote-tower,18,40,40,ok,99,104,112,26,0,4,158,5,65
+let_bindings_16,let with 16 bindings,binding-list,16,40,40,ok,1015,852,1279,48,0,27,491,28,595
+letstar_bindings_24,let* with 24 bindings,binding-list,24,40,40,ok,1504,1153,1820,46,0,35,699,36,851
+fletrec_bindings_12,fletrec with 12 local functions,binding-list,12,40,40,ok,862,771,1158,24,0,12,407,13,525
+nested_case_8,"nested case clauses, depth 8",clause-form,8,40,40,ok,841,756,843,340,55696,0,276,1,272
+nested_receive_6,"nested receive clauses, depth 6",clause-form,6,40,40,ok,730,870,993,261,0,20,555,21,351
+nested_cond_12,cond with 12 clauses,clause-form,12,40,40,ok,728,651,996,20,0,12,288,13,449
+block_arg_match_lambda,match-lambda as call argument,block-argument,8,40,40,ok,203,152,182,24,0,3,127,4,85
+block_arg_lambda,lambda as call argument,block-argument,8,40,40,ok,99,80,91,9,0,1,57,2,48
+block_arg_case,case as call argument,block-argument,8,40,40,ok,131,134,151,17,0,2,83,3,73
+block_arg_receive,receive as call argument,block-argument,8,40,40,ok,122,118,137,14,0,2,94,3,69
+nofit_text_80,direct text wider than narrow limits,forced-nofit,80,40,40,ok,1,1,1,1,1600,0,80,1,1
+nofit_text_180,direct text much wider than normal width,forced-nofit,180,40,40,ok,2,1,1,1,19600,0,180,1,1
+tiny_width_call_30,generic call with 30 long atoms,forced-nofit,30,40,40,ok,140,16,19,12,624100,0,830,1,161
+proper_list_24,"proper list, 24 items",proper-list,24,60,60,ok,122,134,157,31,0,23,135,24,127
+proper_list_48,"proper list, 48 items",proper-list,48,60,60,ok,237,206,253,31,0,47,279,48,247
+dotted_list_16,"dotted list, 16 prefixes",dotted-list,16,60,60,ok,115,115,131,31,0,16,95,17,94
+dotted_list_32,"dotted list, 32 prefixes",dotted-list,32,60,60,ok,178,163,195,31,0,32,191,33,174
+generic_call_24,"generic call, 24 args",generic-call,24,60,60,ok,123,119,143,22,0,23,447,24,131
+generic_call_48,"generic call, 48 args",generic-call,48,60,60,ok,251,191,239,22,0,47,903,48,251
+deep_sexp_8,"deep generic S-expression, depth 8",deep-sexp,8,60,60,ok,421,387,456,65,0,10,498,11,284
+deep_sexp_12,"deep generic S-expression, depth 12",deep-sexp,12,60,60,ok,483,186,232,141,92416,0,364,1,424
+shared_concat_10,"direct shared concat DAG, depth 10",shared-dag,10,60,60,ok,466,19,19,11,125529616,0,11264,1,11
+shared_choice_8,"direct shared choice DAG, depth 8",shared-dag,8,60,60,ok,178,167,349,20,0,51,2867,52,34
+quote_tower_12,"quote/backquote/unquote tower, depth 12",quote-tower,12,60,60,ok,101,99,107,0,0,0,41,1,59
+quote_tower_18,"quote/backquote/unquote tower, depth 18",quote-tower,18,60,60,ok,107,111,119,0,0,0,47,1,65
+let_bindings_16,let with 16 bindings,binding-list,16,60,60,ok,1038,902,1331,19,0,16,403,17,595
+letstar_bindings_24,let* with 24 bindings,binding-list,24,60,60,ok,1655,1205,1874,25,0,24,611,25,851
+fletrec_bindings_12,fletrec with 12 local functions,binding-list,12,60,60,ok,900,809,1199,26,0,12,407,13,525
+nested_case_8,"nested case clauses, depth 8",clause-form,8,60,60,ok,1070,1190,1313,365,0,23,644,24,272
+nested_receive_6,"nested receive clauses, depth 6",clause-form,6,60,60,ok,1057,1179,1336,346,0,17,481,18,351
+nested_cond_12,cond with 12 clauses,clause-form,12,60,60,ok,847,689,1037,22,0,12,288,13,449
+block_arg_match_lambda,match-lambda as call argument,block-argument,8,60,60,ok,176,181,214,25,0,3,127,4,85
+block_arg_lambda,lambda as call argument,block-argument,8,60,60,ok,82,82,93,0,0,0,46,1,48
+block_arg_case,case as call argument,block-argument,8,60,60,ok,136,151,170,2,0,2,83,3,73
+block_arg_receive,receive as call argument,block-argument,8,60,60,ok,132,136,156,7,0,2,94,3,69
+nofit_text_80,direct text wider than narrow limits,forced-nofit,80,60,60,ok,2,1,1,1,400,0,80,1,1
+nofit_text_180,direct text much wider than normal width,forced-nofit,180,60,60,ok,3,1,1,1,14400,0,180,1,1
+tiny_width_call_30,generic call with 30 long atoms,forced-nofit,30,60,60,ok,182,109,139,8,0,29,1671,30,161
+proper_list_24,"proper list, 24 items",proper-list,24,80,80,ok,128,150,173,39,0,23,135,24,127
+proper_list_48,"proper list, 48 items",proper-list,48,80,80,ok,245,222,269,39,0,47,279,48,247
+dotted_list_16,"dotted list, 16 prefixes",dotted-list,16,80,80,ok,128,129,145,0,0,0,79,1,94
+dotted_list_32,"dotted list, 32 prefixes",dotted-list,32,80,80,ok,182,179,211,39,0,32,191,33,174
+generic_call_24,"generic call, 24 args",generic-call,24,80,80,ok,128,131,155,28,0,23,447,24,131
+generic_call_48,"generic call, 48 args",generic-call,48,80,80,ok,284,203,251,28,0,47,903,48,251
+deep_sexp_8,"deep generic S-expression, depth 8",deep-sexp,8,80,80,ok,530,408,480,50,0,7,376,8,284
+deep_sexp_12,"deep generic S-expression, depth 12",deep-sexp,12,80,80,ok,608,570,674,89,0,16,1033,17,424
+shared_concat_10,"direct shared concat DAG, depth 10",shared-dag,10,80,80,ok,444,22,22,11,125081856,0,11264,1,11
+shared_choice_8,"direct shared choice DAG, depth 8",shared-dag,8,80,80,ok,192,204,431,17,0,36,2852,37,34
+quote_tower_12,"quote/backquote/unquote tower, depth 12",quote-tower,12,80,80,ok,99,99,107,0,0,0,41,1,59
+quote_tower_18,"quote/backquote/unquote tower, depth 18",quote-tower,18,80,80,ok,104,111,119,0,0,0,47,1,65
+let_bindings_16,let with 16 bindings,binding-list,16,80,80,ok,1146,942,1374,27,0,16,403,17,595
+letstar_bindings_24,let* with 24 bindings,binding-list,24,80,80,ok,1530,1244,1916,26,0,24,611,25,851
+fletrec_bindings_12,fletrec with 12 local functions,binding-list,12,80,80,ok,896,840,1232,23,0,12,407,13,525
+nested_case_8,"nested case clauses, depth 8",clause-form,8,80,80,ok,1139,1534,1682,439,0,21,584,22,272
+nested_receive_6,"nested receive clauses, depth 6",clause-form,6,80,80,ok,1155,1455,1637,415,0,17,481,18,351
+nested_cond_12,cond with 12 clauses,clause-form,12,80,80,ok,794,727,1078,24,0,12,288,13,449
+block_arg_match_lambda,match-lambda as call argument,block-argument,8,80,80,ok,175,197,231,0,0,0,78,1,85
+block_arg_lambda,lambda as call argument,block-argument,8,80,80,ok,79,82,93,0,0,0,46,1,48
+block_arg_case,case as call argument,block-argument,8,80,80,ok,128,151,170,0,0,0,61,1,73
+block_arg_receive,receive as call argument,block-argument,8,80,80,ok,127,137,158,0,0,0,62,1,69
+nofit_text_80,direct text wider than narrow limits,forced-nofit,80,80,80,ok,2,1,1,0,0,0,80,1,1
+nofit_text_180,direct text much wider than normal width,forced-nofit,180,80,80,ok,3,1,1,1,10000,0,180,1,1
+tiny_width_call_30,generic call with 30 long atoms,forced-nofit,30,80,80,ok,177,111,141,9,0,29,1671,30,161
+proper_list_24,"proper list, 24 items",proper-list,24,100,100,ok,136,166,189,47,0,23,135,24,127
+proper_list_48,"proper list, 48 items",proper-list,48,100,100,ok,244,238,285,47,0,47,279,48,247
+dotted_list_16,"dotted list, 16 prefixes",dotted-list,16,100,100,ok,116,129,145,0,0,0,79,1,94
+dotted_list_32,"dotted list, 32 prefixes",dotted-list,32,100,100,ok,186,195,227,47,0,32,191,33,174
+generic_call_24,"generic call, 24 args",generic-call,24,100,100,ok,130,141,165,33,0,23,447,24,131
+generic_call_48,"generic call, 48 args",generic-call,48,100,100,ok,253,213,261,33,0,47,903,48,251
+deep_sexp_8,"deep generic S-expression, depth 8",deep-sexp,8,100,100,ok,555,426,500,43,0,6,341,7,284
+deep_sexp_12,"deep generic S-expression, depth 12",deep-sexp,12,100,100,ok,662,596,704,74,0,11,724,12,424
+shared_concat_10,"direct shared concat DAG, depth 10",shared-dag,10,100,100,ok,463,27,27,11,124634896,0,11264,1,11
+shared_choice_8,"direct shared choice DAG, depth 8",shared-dag,8,100,100,ok,255,241,513,14,0,28,2844,29,34
+quote_tower_12,"quote/backquote/unquote tower, depth 12",quote-tower,12,100,100,ok,140,99,107,0,0,0,41,1,59
+quote_tower_18,"quote/backquote/unquote tower, depth 18",quote-tower,18,100,100,ok,112,111,119,0,0,0,47,1,65
+let_bindings_16,let with 16 bindings,binding-list,16,100,100,ok,1093,984,1419,36,0,16,403,17,595
+letstar_bindings_24,let* with 24 bindings,binding-list,24,100,100,ok,1635,1287,1962,36,0,24,611,25,851
+fletrec_bindings_12,fletrec with 12 local functions,binding-list,12,100,100,ok,1037,876,1271,24,0,12,407,13,525
+nested_case_8,"nested case clauses, depth 8",clause-form,8,100,100,ok,1450,1833,2002,478,0,20,556,21,272
+nested_receive_6,"nested receive clauses, depth 6",clause-form,6,100,100,ok,1407,1688,1893,421,0,14,417,15,351
+nested_cond_12,cond with 12 clauses,clause-form,12,100,100,ok,795,765,1119,26,0,12,288,13,449
+block_arg_match_lambda,match-lambda as call argument,block-argument,8,100,100,ok,174,197,231,0,0,0,78,1,85
+block_arg_lambda,lambda as call argument,block-argument,8,100,100,ok,77,82,93,0,0,0,46,1,48
+block_arg_case,case as call argument,block-argument,8,100,100,ok,127,151,170,0,0,0,61,1,73
+block_arg_receive,receive as call argument,block-argument,8,100,100,ok,123,137,158,0,0,0,62,1,69
+nofit_text_80,direct text wider than narrow limits,forced-nofit,80,100,100,ok,2,1,1,0,0,0,80,1,1
+nofit_text_180,direct text much wider than normal width,forced-nofit,180,100,100,ok,2,1,1,1,6400,0,180,1,1
+tiny_width_call_30,generic call with 30 long atoms,forced-nofit,30,100,100,ok,167,113,143,10,0,29,1671,30,161

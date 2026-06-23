@@ -16,6 +16,11 @@
 %%%
 %%%     rebar3 eunit && escript bench/pe_bench lfe
 %%%
+%%% LFE stress mode (slice4): resolve+render the pathological stress corpus at
+%%% widths 20, 40, 60, 80, and 100 with monitored timeout/error rows.
+%%%
+%%%     rebar3 eunit && escript bench/pe_bench lfe-stress
+%%%
 %%% It draws no conclusions — it emits the tables and CSVs under bench/results/.
 
 -mode(compile).
@@ -30,6 +35,8 @@ main(["lfe"]) ->
     with_lfe_bench(fun pe_lfe_bench:run/0);
 main(["lfe-knowledge"]) ->
     with_lfe_bench(fun pe_lfe_bench:run_knowledge/0);
+main(["lfe-stress"]) ->
+    with_lfe_bench(fun pe_lfe_bench:run_stress/0);
 main(_Args) ->
     case code:ensure_loaded(pe_resolve) of
         {module, pe_resolve} ->

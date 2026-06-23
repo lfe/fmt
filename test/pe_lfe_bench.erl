@@ -8,13 +8,49 @@
 %%% instead of hanging the parent (A1-R009).
 -module(pe_lfe_bench).
 
--export([columns/0, row/2, rows/2, to_csv/1, run/0, run_knowledge/0]).
+-export([
+    columns/0,
+    row/2,
+    rows/2,
+    to_csv/1,
+    run/0,
+    run_knowledge/0,
+    stress_columns/0,
+    stress_row/3,
+    stress_rows/3,
+    stress_to_csv/1,
+    run_stress/0,
+    monitored/2
+]).
 
 -define(REPEATS, 5).
+-define(STRESS_WIDTHS, [20, 40, 60, 80, 100]).
+-define(STRESS_TIMEOUT_MS, 5000).
 
 -spec columns() -> [atom()].
 columns() ->
     [id, label, width, time_us, memo_size, calls, tainted, badness, height, bytes, lines].
+
+-spec stress_columns() -> [atom()].
+stress_columns() ->
+    [
+        id,
+        label,
+        category,
+        size,
+        width,
+        limit,
+        status,
+        time_us,
+        memo_size,
+        calls,
+        tainted,
+        badness,
+        height,
+        bytes,
+        lines,
+        dag_size
+    ].
 
 %% Resolve + render one sample at one width; return a row map keyed by columns/0.
 -spec row(pe_lfe_samples:sample(), non_neg_integer()) -> #{atom() => term()}.
@@ -43,6 +79,52 @@ row(Sample, Width) ->
 rows(Samples, Widths) ->
     [row(S, W) || W <- Widths, S <- Samples].
 
+%% Resolve + render one pathological stress row in a monitored worker with a
+%% timeout. `dag_size' is `pe_doc:size/1': the frozen hash-consed document-node
+%% count. It is computed before the worker so timeout/error rows still carry a
+%% stable structural size when construction succeeds.
+-spec stress_row(pe_lfe_stress:sample(), non_neg_integer(), timeout()) -> #{atom() => term()}.
+stress_row(Sample, Width, TimeoutMs) ->
+    Limit = Width,
+    DagSize = safe_dag_size(Sample),
+    Base = #{
+        id => pe_lfe_stress:id(Sample),
+        label => pe_lfe_stress:label(Sample),
+        category => pe_lfe_stress:category(Sample),
+        size => pe_lfe_stress:size(Sample),
+        width => Width,
+        limit => Limit,
+        dag_size => DagSize
+    },
+    Fun = fun() -> stress_metrics(Sample, Width, Limit) end,
+    case monitored(Fun, TimeoutMs) of
+        {ok, TimeUs, Metrics} ->
+            Base#{
+                status => ok,
+                time_us => TimeUs,
+                memo_size => maps:get(memo_size, Metrics),
+                calls => maps:get(calls, Metrics),
+                tainted => maps:get(tainted, Metrics),
+                badness => maps:get(badness, Metrics),
+                height => maps:get(height, Metrics),
+                bytes => maps:get(bytes, Metrics),
+                lines => maps:get(lines, Metrics)
+            };
+        timeout ->
+            failed_stress_row(Base, timeout);
+        {error, Reason} ->
+            io:format(
+                "stress row error: id=~s width=~b reason=~p~n",
+                [pe_lfe_stress:id(Sample), Width, Reason]
+            ),
+            failed_stress_row(Base, error)
+    end.
+
+-spec stress_rows([pe_lfe_stress:sample()], [non_neg_integer()], timeout()) ->
+    [#{atom() => term()}].
+stress_rows(Samples, Widths, TimeoutMs) ->
+    [stress_row(S, W, TimeoutMs) || W <- Widths, S <- Samples].
+
 %% Slice2 baseline mode: widths 80 and 100 -> bench/results/lfe_samples.csv.
 -spec run() -> [#{atom() => term()}].
 run() ->
@@ -53,6 +135,18 @@ run() ->
 -spec run_knowledge() -> [#{atom() => term()}].
 run_knowledge() ->
     run_to("bench/results/lfe_knowledge.csv", [80, 100, 60], "LFE knowledge layer (slice3)").
+
+%% Slice4 stress mode: widths 20, 40, 60, 80, 100 ->
+%% bench/results/lfe_stress.csv.
+-spec run_stress() -> [#{atom() => term()}].
+run_stress() ->
+    Rows = stress_rows(pe_lfe_stress:all(), ?STRESS_WIDTHS, ?STRESS_TIMEOUT_MS),
+    print_stress_table("pathological LFE/S-expression stress corpus (slice4)", Rows),
+    print_stress_summary(Rows),
+    ok = filelib:ensure_dir("bench/results/"),
+    ok = file:write_file("bench/results/lfe_stress.csv", stress_to_csv(Rows)),
+    io:format("~nWrote bench/results/lfe_stress.csv (~b rows)~n", [length(Rows)]),
+    Rows.
 
 run_to(Path, Widths, Title) ->
     Rows = rows(pe_lfe_samples:all(), Widths),
@@ -70,6 +164,12 @@ run_to(Path, Widths, Title) ->
 to_csv(Rows) ->
     Header = lists:join($,, [atom_to_list(C) || C <- columns()]),
     Lines = [lists:join($,, [field(maps:get(C, R)) || C <- columns()]) || R <- Rows],
+    iolist_to_binary([lists:join($\n, [Header | Lines]), $\n]).
+
+-spec stress_to_csv([#{atom() => term()}]) -> binary().
+stress_to_csv(Rows) ->
+    Header = lists:join($,, [atom_to_list(C) || C <- stress_columns()]),
+    Lines = [lists:join($,, [field(maps:get(C, R)) || C <- stress_columns()]) || R <- Rows],
     iolist_to_binary([lists:join($\n, [Header | Lines]), $\n]).
 
 field(V) when is_atom(V) -> atom_to_list(V);
@@ -99,11 +199,52 @@ run_once(Fun) ->
         {'DOWN', Ref, process, Pid, Reason} -> error({bench_worker_crashed, Reason})
     end.
 
+%% Run Fun in a monitored worker with an explicit timeout. The result is a
+%% tagged value so stress benchmarking can record timeout/error CSV rows and
+%% continue with the remaining corpus.
+-spec monitored(fun(() -> term()), timeout()) ->
+    {ok, non_neg_integer(), term()} | timeout | {error, term()}.
+monitored(Fun, TimeoutMs) ->
+    {Pid, Ref} = spawn_monitor(fun() -> exit(monitored_result(Fun)) end),
+    receive
+        {'DOWN', Ref, process, Pid, {ok, TimeUs, Result}} ->
+            {ok, TimeUs, Result};
+        {'DOWN', Ref, process, Pid, Reason} ->
+            {error, Reason}
+    after TimeoutMs ->
+        exit(Pid, kill),
+        receive
+            {'DOWN', Ref, process, Pid, _} -> timeout
+        end
+    end.
+
+monitored_result(Fun) ->
+    Start = erlang:monotonic_time(microsecond),
+    try Fun() of
+        Result ->
+            TimeUs = erlang:monotonic_time(microsecond) - Start,
+            {ok, TimeUs, Result}
+    catch
+        Class:Reason ->
+            {error, {Class, Reason}}
+    end.
+
 print_table(Title, Rows) ->
     io:format("~n== ~s (map backend, limit=width) ==~n", [Title]),
     io:format(
         "~-20s ~5s ~8s ~7s ~7s ~7s ~7s ~6s ~6s ~5s~n",
-        ["id", "width", "time_us", "memo", "calls", "tainted", "badness", "height", "bytes", "lines"]
+        [
+            "id",
+            "width",
+            "time_us",
+            "memo",
+            "calls",
+            "tainted",
+            "badness",
+            "height",
+            "bytes",
+            "lines"
+        ]
     ),
     [
         io:format(
@@ -131,3 +272,118 @@ count_char(Bin, Char) ->
 count_char(<<C, Rest/binary>>, C, N) -> count_char(Rest, C, N + 1);
 count_char(<<_, Rest/binary>>, C, N) -> count_char(Rest, C, N);
 count_char(<<>>, _C, N) -> N.
+
+safe_dag_size(Sample) ->
+    try pe_doc:size(pe_lfe_stress:build(Sample)) of
+        Size -> Size
+    catch
+        _:_ -> 0
+    end.
+
+stress_metrics(Sample, Width, Limit) ->
+    Dag = pe_lfe_stress:build(Sample),
+    {Bin, Measure, Stats} = pe:format_binary(Dag, #{width => Width, limit => Limit}),
+    {Badness, Height} = pe_measure:cost(Measure),
+    #{
+        memo_size => maps:get(memo_size, Stats),
+        calls => maps:get(calls, Stats),
+        tainted => maps:get(tainted, Stats),
+        badness => Badness,
+        height => Height,
+        bytes => byte_size(Bin),
+        lines => count_char(Bin, $\n) + 1
+    }.
+
+failed_stress_row(Base, Status) ->
+    Base#{
+        status => Status,
+        time_us => 0,
+        memo_size => 0,
+        calls => 0,
+        tainted => 0,
+        badness => 0,
+        height => 0,
+        bytes => 0,
+        lines => 0
+    }.
+
+print_stress_table(Title, Rows) ->
+    io:format("~n== ~s (map backend, limit=width, timeout=~bms) ==~n", [Title, ?STRESS_TIMEOUT_MS]),
+    io:format(
+        "~-22s ~-16s ~5s ~5s ~8s ~7s ~7s ~7s ~7s ~10s ~6s ~6s ~5s~n",
+        [
+            "id",
+            "category",
+            "width",
+            "limit",
+            "status",
+            "time_us",
+            "memo",
+            "calls",
+            "tainted",
+            "bad",
+            "height",
+            "dag",
+            "lines"
+        ]
+    ),
+    [
+        io:format(
+            "~-22s ~-16s ~5b ~5b ~8s ~7b ~7b ~7b ~7b ~10b ~6b ~6b ~5b~n",
+            [
+                maps:get(id, R),
+                maps:get(category, R),
+                maps:get(width, R),
+                maps:get(limit, R),
+                atom_to_list(maps:get(status, R)),
+                maps:get(time_us, R),
+                maps:get(memo_size, R),
+                maps:get(calls, R),
+                maps:get(tainted, R),
+                maps:get(badness, R),
+                maps:get(height, R),
+                maps:get(dag_size, R),
+                maps:get(lines, R)
+            ]
+        )
+     || R <- Rows
+    ],
+    ok.
+
+print_stress_summary(Rows) ->
+    io:format("~n== stress worst rows (stable counters first) ==~n", []),
+    print_top(calls, Rows),
+    print_top(memo_size, Rows),
+    print_top(tainted, Rows),
+    print_top(badness, Rows),
+    StatusRows = [R || R <- Rows, maps:get(status, R) =/= ok],
+    case StatusRows of
+        [] ->
+            io:format("status: no timeout/error rows~n", []);
+        _ ->
+            io:format("status rows:~n", []),
+            [print_summary_row(R) || R <- StatusRows]
+    end.
+
+print_top(Key, Rows) ->
+    Sorted = lists:sublist(
+        lists:sort(fun(A, B) -> maps:get(Key, A) >= maps:get(Key, B) end, Rows),
+        5
+    ),
+    io:format("~p top:~n", [Key]),
+    [print_summary_row(R) || R <- Sorted].
+
+print_summary_row(R) ->
+    io:format(
+        "  id=~s width=~b status=~p calls=~b memo=~b tainted=~b badness=~b dag=~b~n",
+        [
+            maps:get(id, R),
+            maps:get(width, R),
+            maps:get(status, R),
+            maps:get(calls, R),
+            maps:get(memo_size, R),
+            maps:get(tainted, R),
+            maps:get(badness, R),
+            maps:get(dag_size, R)
+        ]
+    ).

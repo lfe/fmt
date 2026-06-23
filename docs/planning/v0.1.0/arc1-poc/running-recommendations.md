@@ -24,7 +24,7 @@ because the current slice is moving on.
 
 ### A1-R001: Stress the all-tainted fallback path
 
-- **Status:** open
+- **Status:** addressed by slice4, keep watching
 - **Source:** CDC verification of slice1 resolver.
 - **Concern:** Slice1 proved promising resolver behavior on the tested DAGs, but
   the disclosed all-tainted `optimal/1` / leftmost-widening path remains the
@@ -37,6 +37,10 @@ because the current slice is moving on.
 - **Current plan:** `slice4-pathological-stress-corpus` is planned to exercise
   this risk with forced no-fit rows, narrow widths, tainted/badness counters, and
   timeout-safe benchmark execution.
+- **Slice4 result:** The stress corpus added forced no-fit/proxy rows and
+  non-zero badness/tainted evidence, but did not add exact all-tainted-path
+  instrumentation. Keep the exact internal-path question visible if resolver
+  work resumes.
 - **Re-entry trigger:** Before relying on the PoC for large generated LFE files,
   macro-heavy forms, or formatter-wide performance claims.
 
@@ -112,7 +116,7 @@ because the current slice is moving on.
 
 ### A1-R007: Add a pathological s-expression stress corpus
 
-- **Status:** open
+- **Status:** addressed by slice4
 - **Source:** Slice2 viability assessment.
 - **Concern:** Slice2's numbers are encouraging: all 40 rows had `badness = 0`,
   sub-millisecond timings, and no all-tainted failures. But these fixtures are
@@ -126,6 +130,9 @@ because the current slice is moving on.
 - **Current plan:** `slice4-pathological-stress-corpus` is planned to implement
   this as a deterministic corpus plus `bench/results/lfe_stress.csv`, with
   stable structural counters prioritized over timing.
+- **Slice4 result:** Implemented as 25 deterministic samples across the requested
+  families, benchmarked at widths 20, 40, 60, 80, and 100, with 125 committed
+  CSV rows and no timeout/error rows in the sample run.
 - **Re-entry trigger:** After the first LFE knowledge-layer slice, or before
   claiming algorithmic feasibility for broad LFE formatting.
 
@@ -241,3 +248,21 @@ because the current slice is moving on.
   comment preservation as explicit questions rather than inferred properties.
 - **Re-entry trigger:** Before claiming this is an LFE formatter rather than a
   knowledge-layer PoC.
+
+## Slice 4: Pathological Stress Corpus
+
+### A1-R016: Keep the whole stress row inside the timeout boundary
+
+- **Status:** open
+- **Source:** Slice4 CDC review of `pe_lfe_bench:stress_row/3`.
+- **Concern:** The stress benchmark wraps resolve/render work in a monitored
+  timeout, but computes `dag_size` by building the sample before entering that
+  monitored worker. The current 25 samples are bounded and safe, so this did not
+  affect the slice4 evidence. However, future larger or generator-heavy stress
+  cases could still wedge the parent during pre-worker construction.
+- **Recommendation:** Move document construction, `dag_size`, resolve, and render
+  into the monitored worker as one timed operation. Timeout/error rows can report
+  `dag_size = 0` or a blank field when construction never completed. Add a
+  targeted test if a cheap delayed-build seam becomes available.
+- **Re-entry trigger:** Before expanding the stress corpus sizes, adding
+  generator-driven stress cases, or running the benchmark unattended in CI.
