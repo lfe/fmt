@@ -77,6 +77,6 @@ of the rendered output. Numbers, not a verdict:
 
 ## Closure
 
-Closed at commit `<slice2 SHA>` on 2026-06-22. CDC verification: pending
+Closed at commit `386f44d` on 2026-06-22. CDC verification: pending
 (operator-run). Total rows: 21. Done: 19. Deferred: 2 (A1S2-20 OTP 22–29
 backport; A1S2-21 coverage gate + CAP audit). No-op: 0.
