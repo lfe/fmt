@@ -218,6 +218,9 @@ because the current slice is moving on.
   arguments: when an argument is itself a known block form (`lambda`,
   `match-lambda`, `case`, `receive`, `cond`, etc.), allow it to break from the
   call with a local block indentation rather than generic first-argument align.
+- **Current plan:** `slice5-lfe-layout-refinements` is planned to address this
+  alongside `flet`/`fletrec` binding layout, with `lfe_08_ets_new` and the
+  slice4 `block_arg_*` stress samples as evidence targets.
 - **Re-entry trigger:** Next knowledge-layer refinement slice, especially before
   judging visual quality on higher-order calls.
 
@@ -233,6 +236,9 @@ because the current slice is moving on.
   `flet`/`fletrec`: bindings of the form `(name (args...) body...)` should lower
   through the same clause/body machinery used by `defun`-style forms, with the
   body nested under the local function head.
+- **Current plan:** `slice5-lfe-layout-refinements` is planned to address this
+  with `lfe_20_eval_receive` and the slice4 `fletrec_bindings_12` stress sample
+  as evidence targets.
 - **Re-entry trigger:** Next knowledge-layer refinement slice, or any corpus
   expansion involving local functions.
 
@@ -264,5 +270,7 @@ because the current slice is moving on.
   into the monitored worker as one timed operation. Timeout/error rows can report
   `dag_size = 0` or a blank field when construction never completed. Add a
   targeted test if a cheap delayed-build seam becomes available.
+- **Current plan:** `slice5-lfe-layout-refinements` is planned to include this
+  cleanup so future stress expansions inherit a stronger timeout boundary.
 - **Re-entry trigger:** Before expanding the stress corpus sizes, adding
   generator-driven stress cases, or running the benchmark unattended in CI.
