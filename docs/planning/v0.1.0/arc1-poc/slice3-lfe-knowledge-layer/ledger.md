@@ -90,7 +90,7 @@
 
 ## Closure
 
-Closed at commit `<slice3 SHA>` on 2026-06-22. CDC verification: pending
+Closed at commit `921fc7d` on 2026-06-22. CDC verification: pending
 (operator-run). Total rows: 28. Done: 26. Deferred: 2 (A1S3-27 OTP 22–29
 backport; A1S3-28 coverage gate + CAP audit). No-op: 0.
 
