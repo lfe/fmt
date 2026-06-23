@@ -25,6 +25,34 @@ row_count_test() ->
     Rows = pe_lfe_bench:rows(pe_lfe_samples:all(), [80, 100]),
     ?assertEqual(40, length(Rows)).
 
+%% A1S3-21: the knowledge benchmark covers widths 80, 100, 60 -> 60 rows.
+knowledge_row_count_test() ->
+    Rows = pe_lfe_bench:rows(pe_lfe_samples:all(), [80, 100, 60]),
+    ?assertEqual(60, length(Rows)).
+
+%% A1S3-23: CSV fields with commas/quotes/newlines are escaped (quoted, inner
+%% quotes doubled); plain fields are left bare.
+csv_escaping_test() ->
+    Rows = [#{
+        id => demo,
+        label => <<"a,b \"c\"">>,
+        width => 80,
+        time_us => 1,
+        memo_size => 2,
+        calls => 3,
+        tainted => 0,
+        badness => 0,
+        height => 1,
+        bytes => 5,
+        lines => 1
+    }],
+    Csv = pe_lfe_bench:to_csv(Rows),
+    %% the label is quoted with its inner quotes doubled.
+    ?assert(binary:match(Csv, <<"\"a,b \"\"c\"\"\"">>) =/= nomatch),
+    %% a plain label is not quoted.
+    PlainCsv = pe_lfe_bench:to_csv([(hd(Rows))#{label => <<"plain">>}]),
+    ?assert(binary:match(PlainCsv, <<",plain,">>) =/= nomatch).
+
 %% A1S2-12/14: CSV header matches the columns and there is one line per row.
 csv_header_and_count_test() ->
     Rows = pe_lfe_bench:rows([pe_lfe_samples:by_id(lfe_02_fizz)], [80, 100]),

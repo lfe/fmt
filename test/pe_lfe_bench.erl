@@ -1,12 +1,14 @@
 %%% @doc Real-LFE sample benchmark (test-only): resolve+render the 20 fixtures
-%%% at widths 80 and 100 and report timing, memo/call/taint stats, and rendered
-%%% size. Produces numbers for CDC/operator; draws no conclusion.
+%%% — now lowered through the {@link pe_lfe} knowledge layer — and report
+%%% timing, memo/call/taint stats, and rendered size. Numbers for CDC/operator;
+%%% draws no conclusion.
 %%%
 %%% Timing uses `timer:tc/1' (monotonic on modern OTP), best-of-N, with each
-%%% repeat run in a fresh process to suppress shared-heap/GC skew (PF-03).
+%%% repeat in a fresh, monitored process so a crashing worker reports an error
+%%% instead of hanging the parent (A1-R009).
 -module(pe_lfe_bench).
 
--export([columns/0, row/2, rows/2, to_csv/1, run/0]).
+-export([columns/0, row/2, rows/2, to_csv/1, run/0, run_knowledge/0]).
 
 -define(REPEATS, 5).
 
@@ -37,55 +39,68 @@ row(Sample, Width) ->
         lines => count_char(Bin, $\n) + 1
     }.
 
-%% All samples × all widths.
 -spec rows([pe_lfe_samples:sample()], [non_neg_integer()]) -> [#{atom() => term()}].
 rows(Samples, Widths) ->
     [row(S, W) || W <- Widths, S <- Samples].
 
-%% Run the full sweep, print a table, and write the CSV.
+%% Slice2 baseline mode: widths 80 and 100 -> bench/results/lfe_samples.csv.
 -spec run() -> [#{atom() => term()}].
 run() ->
-    Rows = rows(pe_lfe_samples:all(), [80, 100]),
-    print_table(Rows),
+    run_to("bench/results/lfe_samples.csv", [80, 100], "real-LFE samples (slice2 baseline shape)").
+
+%% Slice3 knowledge-layer mode: widths 80, 100, and 60 ->
+%% bench/results/lfe_knowledge.csv.
+-spec run_knowledge() -> [#{atom() => term()}].
+run_knowledge() ->
+    run_to("bench/results/lfe_knowledge.csv", [80, 100, 60], "LFE knowledge layer (slice3)").
+
+run_to(Path, Widths, Title) ->
+    Rows = rows(pe_lfe_samples:all(), Widths),
+    print_table(Title, Rows),
     ok = filelib:ensure_dir("bench/results/"),
-    ok = file:write_file("bench/results/lfe_samples.csv", to_csv(Rows)),
-    io:format("~nWrote bench/results/lfe_samples.csv (~b rows)~n", [length(Rows)]),
+    ok = file:write_file(Path, to_csv(Rows)),
+    io:format("~nWrote ~s (~b rows)~n", [Path, length(Rows)]),
     Rows.
 
 %%%-------------------------------------------------------------------
-%%% CSV
+%%% CSV (with minimal escaping for binary fields)
 %%%-------------------------------------------------------------------
 
 -spec to_csv([#{atom() => term()}]) -> binary().
 to_csv(Rows) ->
-    Header = lists:join(",", [atom_to_list(C) || C <- columns()]),
-    Lines = [lists:join(",", [field(maps:get(C, R)) || C <- columns()]) || R <- Rows],
-    iolist_to_binary([lists:join("\n", [Header | Lines]), "\n"]).
+    Header = lists:join($,, [atom_to_list(C) || C <- columns()]),
+    Lines = [lists:join($,, [field(maps:get(C, R)) || C <- columns()]) || R <- Rows],
+    iolist_to_binary([lists:join($\n, [Header | Lines]), $\n]).
 
 field(V) when is_atom(V) -> atom_to_list(V);
 field(V) when is_integer(V) -> integer_to_list(V);
-field(V) when is_binary(V) -> binary_to_list(V).
+field(V) when is_binary(V) -> escape_csv(V).
+
+%% Quote a field that contains a comma, quote, or newline; double inner quotes.
+escape_csv(Bin) ->
+    case binary:match(Bin, [<<",">>, <<"\"">>, <<"\n">>]) of
+        nomatch -> Bin;
+        _ -> [$", binary:replace(Bin, <<"\"">>, <<"\"\"">>, [global]), $"]
+    end.
 
 %%%-------------------------------------------------------------------
-%%% Timing (fresh process per repeat) and reporting
+%%% Timing (fresh, monitored process per repeat) and reporting
 %%%-------------------------------------------------------------------
 
 best_of(N, Fun) ->
     lists:min([run_once(Fun) || _ <- lists:seq(1, N)]).
 
+%% Run Fun in a fresh monitored process; return the elapsed microseconds. A
+%% worker crash surfaces as an error here instead of hanging the parent.
 run_once(Fun) ->
-    Parent = self(),
-    Ref = make_ref(),
-    _ = spawn(fun() ->
-        {Time, _Result} = timer:tc(Fun),
-        Parent ! {Ref, Time}
-    end),
+    {Pid, Ref} = spawn_monitor(fun() -> exit({ok, element(1, timer:tc(Fun))}) end),
     receive
-        {Ref, Time} -> Time
+        {'DOWN', Ref, process, Pid, {ok, Time}} -> Time;
+        {'DOWN', Ref, process, Pid, Reason} -> error({bench_worker_crashed, Reason})
     end.
 
-print_table(Rows) ->
-    io:format("~n== real-LFE sample benchmark (map backend, limit=width) ==~n", []),
+print_table(Title, Rows) ->
+    io:format("~n== ~s (map backend, limit=width) ==~n", [Title]),
     io:format(
         "~-20s ~5s ~8s ~7s ~7s ~7s ~7s ~6s ~6s ~5s~n",
         ["id", "width", "time_us", "memo", "calls", "tainted", "badness", "height", "bytes", "lines"]
@@ -111,4 +126,8 @@ print_table(Rows) ->
     ok.
 
 count_char(Bin, Char) ->
-    length([c || <<C>> <= Bin, C =:= Char]).
+    count_char(Bin, Char, 0).
+
+count_char(<<C, Rest/binary>>, C, N) -> count_char(Rest, C, N + 1);
+count_char(<<_, Rest/binary>>, C, N) -> count_char(Rest, C, N);
+count_char(<<>>, _C, N) -> N.

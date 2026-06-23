@@ -27,14 +27,9 @@
 -define(REPEATS, 7).
 
 main(["lfe"]) ->
-    case code:ensure_loaded(pe_lfe_bench) of
-        {module, pe_lfe_bench} ->
-            pe_lfe_bench:run();
-        _ ->
-            io:format("error: LFE sample beams not found.~n"),
-            io:format("run `rebar3 eunit` first (compiles the test profile).~n"),
-            halt(1)
-    end;
+    with_lfe_bench(fun pe_lfe_bench:run/0);
+main(["lfe-knowledge"]) ->
+    with_lfe_bench(fun pe_lfe_bench:run_knowledge/0);
 main(_Args) ->
     case code:ensure_loaded(pe_resolve) of
         {module, pe_resolve} ->
@@ -42,6 +37,16 @@ main(_Args) ->
         _ ->
             io:format("error: engine beams not found.~n"),
             io:format("run `rebar3 compile` first, from the repo root.~n"),
+            halt(1)
+    end.
+
+with_lfe_bench(Fun) ->
+    case code:ensure_loaded(pe_lfe_bench) of
+        {module, pe_lfe_bench} ->
+            Fun();
+        _ ->
+            io:format("error: LFE sample beams not found.~n"),
+            io:format("run `rebar3 eunit` first (compiles the test profile).~n"),
             halt(1)
     end.
 

@@ -1,0 +1,61 @@
+id,label,width,time_us,memo_size,calls,tainted,badness,height,bytes,lines
+lfe_01_ackermann,ackermann/2 multi-clause defun,80,300,513,611,21,0,3,119,4
+lfe_02_fizz,fizz/3 string clauses,80,144,280,363,0,0,0,79,1
+lfe_03_buzz1,buzz1/1 guarded head,80,130,279,317,0,0,0,59,1
+lfe_04_tail_buzz,tail-buzz/2 tail recursion,80,199,421,484,19,0,2,118,3
+lfe_05_plusplus,++ macro with quasiquote/rest,80,147,318,360,0,0,0,71,1
+lfe_06_cond,cond macro expanding to if,80,294,499,572,21,0,3,143,4
+lfe_07_bq_expand,bq-expand inside eval-when-compile,80,616,949,1079,146,0,9,296,10
+lfe_08_ets_new,ets-demo new/0 with match-lambda,80,402,561,635,89,0,6,269,7
+lfe_09_by_place_ms,by_place_ms/2 match-spec,80,135,288,331,24,0,1,89,2
+lfe_10_mnesia_new,mnesia-demo new/0 transaction,80,175,323,359,64,0,4,189,5
+lfe_11_guess_server,guess-server/1 receive loop,80,258,447,494,65,0,6,165,7
+lfe_12_ping_pong,ping-pong gen_server callbacks,80,371,541,619,94,0,4,183,5
+lfe_13_get_page,get-page/1 async httpc,80,466,744,855,82,0,4,211,5
+lfe_14_fish_closure,fish-class/3 closure object,80,315,504,565,76,0,5,201,6
+lfe_15_fish_process,fish-class/3 process loop,80,283,457,528,36,0,3,201,4
+lfe_16_account,account-class/3 cond receive,80,346,690,779,129,0,6,268,7
+lfe_17_eval_expr,eval-expr/2 central case,80,478,744,867,57,0,6,263,7
+lfe_18_parse_bitspecs,parse-bitspecs/3 let/case nesting,80,415,621,719,72,0,4,206,5
+lfe_19_eval_lambda,eval-lambda/2 arity dispatch,80,417,616,753,26,0,4,209,5
+lfe_20_eval_receive,eval-receive/2 fletrec + after,80,321,524,600,126,0,8,284,9
+lfe_01_ackermann,ackermann/2 multi-clause defun,100,326,543,643,29,0,3,119,4
+lfe_02_fizz,fizz/3 string clauses,100,131,280,363,0,0,0,79,1
+lfe_03_buzz1,buzz1/1 guarded head,100,140,279,317,0,0,0,59,1
+lfe_04_tail_buzz,tail-buzz/2 tail recursion,100,261,458,524,32,0,2,118,3
+lfe_05_plusplus,++ macro with quasiquote/rest,100,156,318,360,0,0,0,71,1
+lfe_06_cond,cond macro expanding to if,100,297,521,595,24,0,3,143,4
+lfe_07_bq_expand,bq-expand inside eval-when-compile,100,734,1071,1211,124,0,7,276,8
+lfe_08_ets_new,ets-demo new/0 with match-lambda,100,318,618,697,77,0,5,246,6
+lfe_09_by_place_ms,by_place_ms/2 match-spec,100,134,293,336,0,0,0,87,1
+lfe_10_mnesia_new,mnesia-demo new/0 transaction,100,200,375,414,27,0,2,139,3
+lfe_11_guess_server,guess-server/1 receive loop,100,257,487,537,37,0,3,147,4
+lfe_12_ping_pong,ping-pong gen_server callbacks,100,322,588,670,83,0,3,177,4
+lfe_13_get_page,get-page/1 async httpc,100,488,810,926,65,0,4,211,5
+lfe_14_fish_closure,fish-class/3 closure object,100,292,556,620,85,0,5,201,6
+lfe_15_fish_process,fish-class/3 process loop,100,268,501,576,46,0,3,201,4
+lfe_16_account,account-class/3 cond receive,100,445,792,891,130,0,5,258,6
+lfe_17_eval_expr,eval-expr/2 central case,100,501,793,919,60,0,6,263,7
+lfe_18_parse_bitspecs,parse-bitspecs/3 let/case nesting,100,433,691,794,86,0,4,206,5
+lfe_19_eval_lambda,eval-lambda/2 arity dispatch,100,412,641,780,28,0,4,209,5
+lfe_20_eval_receive,eval-receive/2 fletrec + after,100,373,565,643,94,0,6,250,7
+lfe_01_ackermann,ackermann/2 multi-clause defun,60,273,483,578,17,0,3,119,4
+lfe_02_fizz,fizz/3 string clauses,60,126,251,332,17,0,4,87,5
+lfe_03_buzz1,buzz1/1 guarded head,60,134,279,317,0,0,0,59,1
+lfe_04_tail_buzz,tail-buzz/2 tail recursion,60,182,392,452,17,0,2,118,3
+lfe_05_plusplus,++ macro with quasiquote/rest,60,137,307,349,29,0,3,77,4
+lfe_06_cond,cond macro expanding to if,60,268,457,527,39,0,4,147,5
+lfe_07_bq_expand,bq-expand inside eval-when-compile,60,619,838,961,133,0,9,296,10
+lfe_08_ets_new,ets-demo new/0 with match-lambda,60,303,477,545,109,0,10,445,11
+lfe_09_by_place_ms,by_place_ms/2 match-spec,60,113,250,290,26,0,1,89,2
+lfe_10_mnesia_new,mnesia-demo new/0 transaction,60,140,264,295,65,0,4,189,5
+lfe_11_guess_server,guess-server/1 receive loop,60,194,388,431,75,0,6,165,7
+lfe_12_ping_pong,ping-pong gen_server callbacks,60,303,486,558,98,0,6,199,7
+lfe_13_get_page,get-page/1 async httpc,60,454,669,773,90,0,8,292,9
+lfe_14_fish_closure,fish-class/3 closure object,60,276,436,492,73,0,8,249,9
+lfe_15_fish_process,fish-class/3 process loop,60,257,417,484,75,0,6,219,7
+lfe_16_account,account-class/3 cond receive,60,309,603,688,150,0,10,338,11
+lfe_17_eval_expr,eval-expr/2 central case,60,423,699,818,57,0,7,269,8
+lfe_18_parse_bitspecs,parse-bitspecs/3 let/case nesting,60,376,562,655,54,0,4,206,5
+lfe_19_eval_lambda,eval-lambda/2 arity dispatch,60,380,574,707,53,0,6,217,7
+lfe_20_eval_receive,eval-receive/2 fletrec + after,60,251,455,526,101,0,8,284,9

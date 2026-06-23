@@ -89,3 +89,22 @@ samples_deterministic_test() ->
 
 count(Bin, Char) ->
     length([c || <<C>> <= Bin, C =:= Char]).
+
+%% A1S3-15: samples store pe_lfe:form() terms and build/1 lowers through
+%% pe_lfe:to_doc/1.
+form_accessor_test() ->
+    Form = pe_lfe_samples:form(pe_lfe_samples:by_id(lfe_01_ackermann)),
+    ?assertMatch({call, [{sym, <<"defun">>} | _]}, Form),
+    %% build/1 agrees with lowering the form directly.
+    Sample = pe_lfe_samples:by_id(lfe_01_ackermann),
+    Dag1 = pe_lfe_samples:build(Sample),
+    Dag2 = pe_lfe:to_doc(Form),
+    ?assertEqual(pe_doc:size(Dag1), pe_doc:size(Dag2)),
+    ?assertEqual(pe_doc:root(Dag1), pe_doc:root(Dag2)).
+
+%% Every sample's stored form is a well-formed pe_lfe:form() head.
+all_forms_are_terms_test() ->
+    [
+        ?assert(is_tuple(pe_lfe_samples:form(S)) andalso tuple_size(pe_lfe_samples:form(S)) >= 2)
+     || S <- pe_lfe_samples:all()
+    ].
