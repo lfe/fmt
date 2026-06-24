@@ -231,3 +231,20 @@ files_row_error_test() ->
     Row = pe_lfe_bench:files_row("/no/such/file_xyz.lfe", 80, 2000),
     ?assertEqual(error, maps:get(status, Row)),
     ?assertEqual(0, maps:get(n_forms, Row)).
+
+%% A1S7-11: the frontier CSV column set + header.
+frontier_columns_test() ->
+    ?assertEqual(
+        [suite, id, index, head, width, wlimit, status, max, mean, p99, count,
+         max_over_w, memo_size, tainted],
+        pe_lfe_bench:frontier_columns()
+    ).
+
+frontier_csv_header_test() ->
+    Csv = pe_lfe_bench:frontier_to_csv([]),
+    [Header | _] = binary:split(Csv, <<"\n">>, [global, trim]),
+    ?assertEqual(
+        <<"suite,id,index,head,width,wlimit,status,max,mean,p99,count,max_over_w,"
+          "memo_size,tainted">>,
+        Header
+    ).

@@ -28,7 +28,10 @@
     files_columns/0,
     files_row/3,
     files_to_csv/1,
-    run_files/0
+    run_files/0,
+    frontier_columns/0,
+    frontier_to_csv/1,
+    run_frontier/0
 ]).
 
 -define(REPEATS, 5).
@@ -44,6 +47,7 @@
 -define(STRESS_TIMEOUT_MS, 5000).
 -define(FILES_WIDTHS, [60, 80, 100]).
 -define(FILES_TIMEOUT_MS, 30000).
+-define(FRONTIER_WIDTHS, [40, 80, 100]).
 
 -spec columns() -> [atom()].
 columns() ->
@@ -318,6 +322,15 @@ safe_dag_size(Form) ->
         _:_ -> pe_doc:size(pe_lfe:to_doc(pe_lfe_read:genericize(Form)))
     end.
 
+%% Build a dag from a form, genericising on any lowering crash (mirrors
+%% pe_lfe_read:safe_format_binary's guarantee, but returns the dag).
+safe_dag(Form) ->
+    try pe_lfe:to_doc(Form) of
+        Dag -> Dag
+    catch
+        _:_ -> pe_lfe:to_doc(pe_lfe_read:genericize(Form))
+    end.
+
 sum(Key, Maps) -> lists:sum([maps:get(Key, M) || M <- Maps]).
 
 worst_by(_Key, []) -> undefined;
@@ -428,6 +441,7 @@ refined_to_csv(Rows) ->
 
 field(V) when is_atom(V) -> atom_to_list(V);
 field(V) when is_integer(V) -> integer_to_list(V);
+field(V) when is_float(V) -> float_to_list(V, [{decimals, 4}]);
 field(V) when is_binary(V) -> escape_csv(V).
 
 %% Quote a field that contains a comma, quote, or newline; double inner quotes.
@@ -716,3 +730,168 @@ id_to_binary(Id) when is_atom(Id) ->
     atom_to_binary(Id, utf8);
 id_to_binary(Id) when is_binary(Id) ->
     Id.
+
+%%%-------------------------------------------------------------------
+%%% Slice7 frontier mode: Pareto frontier-width (|mset|) distribution
+%%%-------------------------------------------------------------------
+
+-spec frontier_columns() -> [atom()].
+frontier_columns() ->
+    [
+        suite,
+        id,
+        index,
+        head,
+        width,
+        wlimit,
+        status,
+        max,
+        mean,
+        p99,
+        count,
+        max_over_w,
+        memo_size,
+        tainted
+    ].
+
+%% Resolve one document with frontier_stats on; one CSV row per resolve.
+frontier_row(Suite, Id, Index, Head, Dag, Width) ->
+    Base = #{suite => Suite, id => Id, index => Index, head => Head, width => Width, wlimit => Width},
+    Opts = #{
+        cost => pe_cost_squared,
+        memo => pe_memo_map,
+        width => Width,
+        limit => Width,
+        frontier_stats => true
+    },
+    case monitored(fun() -> frontier_metrics(Dag, Opts) end, ?FILES_TIMEOUT_MS) of
+        {ok, _WorkerUs, {F, MemoSize, Tainted}} ->
+            Max = maps:get(max, F),
+            Base#{
+                status => ok,
+                max => Max,
+                mean => maps:get(mean, F),
+                p99 => maps:get(p99, F),
+                count => maps:get(count, F),
+                max_over_w => ratio(Max, Width),
+                memo_size => MemoSize,
+                tainted => Tainted
+            };
+        timeout ->
+            failed_frontier_row(Base, timeout);
+        {error, Reason} ->
+            io:format("frontier error: suite=~s id=~s width=~b reason=~p~n", [Suite, Id, Width, Reason]),
+            failed_frontier_row(Base, error)
+    end.
+
+frontier_metrics(Dag, Opts) ->
+    {_Measure, Stats} = pe_resolve:resolve(Dag, Opts),
+    {maps:get(frontier, Stats), maps:get(memo_size, Stats), maps:get(tainted, Stats)}.
+
+ratio(_Max, 0) -> 0.0;
+ratio(Max, W) -> Max / W.
+
+failed_frontier_row(Base, Status) ->
+    Base#{
+        status => Status,
+        max => 0,
+        mean => 0.0,
+        p99 => 0,
+        count => 0,
+        max_over_w => 0.0,
+        memo_size => 0,
+        tainted => 0
+    }.
+
+knowledge_frontier_rows() ->
+    [
+        frontier_row(
+            <<"knowledge">>,
+            atom_to_binary(pe_lfe_samples:id(S), utf8),
+            0,
+            form_head(pe_lfe_samples:form(S)),
+            pe_lfe_samples:build(S),
+            W
+        )
+     || W <- ?FRONTIER_WIDTHS, S <- pe_lfe_samples:all()
+    ].
+
+stress_frontier_rows() ->
+    [
+        frontier_row(<<"stress">>, pe_lfe_stress:id(S), 0, <<"-">>, pe_lfe_stress:build(S), W)
+     || W <- ?FRONTIER_WIDTHS, S <- pe_lfe_stress:all()
+    ].
+
+%% Per-form rows for the real corpus, so a fat-frontier tail (e.g. guard_SUITE)
+%% is attributable to specific top-level forms.
+real_frontier_rows() ->
+    [
+        frontier_row(
+            <<"real">>,
+            list_to_binary(filename:basename(Path)),
+            Index,
+            form_head(Form),
+            safe_dag(Form),
+            W
+        )
+     || W <- ?FRONTIER_WIDTHS, Path <- file_paths(), {Index, Form} <- indexed_forms(Path)
+    ].
+
+indexed_forms(Path) ->
+    case pe_lfe_read:read_file(Path) of
+        {ok, Forms} -> lists:zip(lists:seq(1, length(Forms)), Forms);
+        {error, _} -> []
+    end.
+
+-spec frontier_to_csv([#{atom() => term()}]) -> binary().
+frontier_to_csv(Rows) ->
+    Header = lists:join($,, [atom_to_list(C) || C <- frontier_columns()]),
+    Lines = [lists:join($,, [field(maps:get(C, R)) || C <- frontier_columns()]) || R <- Rows],
+    iolist_to_binary([lists:join($\n, [Header | Lines]), $\n]).
+
+-spec run_frontier() -> [#{atom() => term()}].
+run_frontier() ->
+    Rows =
+        knowledge_frontier_rows() ++ stress_frontier_rows() ++ real_frontier_rows(),
+    print_frontier_summary(Rows),
+    ok = filelib:ensure_dir("bench/results/"),
+    ok = file:write_file("bench/results/frontier.csv", frontier_to_csv(Rows)),
+    io:format("~nWrote bench/results/frontier.csv (~b rows)~n", [length(Rows)]),
+    Rows.
+
+%% The decisive headline: max |mset| and max/W across the corpus, per suite, and
+%% the widest individual resolves (so the guard_SUITE tail is attributable).
+print_frontier_summary(Rows) ->
+    Ok = [R || R <- Rows, maps:get(status, R) =:= ok],
+    io:format("~n== frontier-width (|mset|) over the real corpus (frontier_stats on) ==~n", []),
+    io:format("rows=~b (ok=~b)~n", [length(Rows), length(Ok)]),
+    GlobalMax = lists:max([maps:get(max, R) || R <- Ok]),
+    MaxRatio = lists:max([maps:get(max_over_w, R) || R <- Ok]),
+    io:format("GLOBAL max |mset| = ~b ; max (max/W) = ~.4f~n", [GlobalMax, MaxRatio]),
+    [
+        io:format("  suite=~-10s max|mset|=~b~n", [
+            Suite, lists:max([maps:get(max, R) || R <- Ok, maps:get(suite, R) =:= Suite] ++ [0])
+        ])
+     || Suite <- [<<"knowledge">>, <<"stress">>, <<"real">>]
+    ],
+    io:format("widest resolves:~n", []),
+    Widest = lists:sublist(
+        lists:sort(fun(A, B) -> maps:get(max, A) >= maps:get(max, B) end, Ok), 8
+    ),
+    [
+        io:format(
+            "  ~-10s ~-22s idx=~-4b W=~-4b max=~-3b p99=~-3b mean=~.2f count=~b~n",
+            [
+                maps:get(suite, R),
+                maps:get(id, R),
+                maps:get(index, R),
+                maps:get(width, R),
+                maps:get(max, R),
+                maps:get(p99, R),
+                maps:get(mean, R),
+                maps:get(count, R)
+            ]
+        )
+     || R <- Widest
+    ],
+    ok.

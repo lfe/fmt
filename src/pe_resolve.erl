@@ -28,22 +28,36 @@
 
 -export_type([opts/0, stats/0]).
 
--doc "Resolver options: cost factory, memo backend, page width, computation limit.".
+-doc """
+Resolver options: cost factory, memo backend, page width, computation limit.
+`frontier_stats' (default `false') is an optional, observation-only flag that
+records the Pareto frontier-width distribution per memo entry; it never changes
+the result or any other counter.
+""".
 -type opts() :: #{
     cost := module(),
     memo := module(),
     width := non_neg_integer(),
-    limit := non_neg_integer()
+    limit := non_neg_integer(),
+    frontier_stats => boolean()
 }.
 
--doc "Diagnostics: distinct memo entries, resolver invocations, tainted results.".
+-doc """
+Diagnostics: distinct memo entries, resolver invocations, tainted results. The
+`frontier' map is present iff `frontier_stats' was on — it reports the per-memo-
+entry frontier-width (`|mset|') distribution: `max', `mean', `p50'/`p90'/`p99',
+`count', `histogram' (`width => count'), and `max_at' (the `{Id, C, I}' key
+where the widest frontier occurred).
+""".
 -type stats() :: #{
     memo_size := non_neg_integer(),
     calls := non_neg_integer(),
-    tainted := non_neg_integer()
+    tainted := non_neg_integer(),
+    frontier => map()
 }.
 
-%% Immutable config plus the threaded handle and counters.
+%% Immutable config plus the threaded handle and counters. The frontier fields
+%% are touched only when frontier_stats is on (zero per-element work when off).
 -record(rs, {
     dag :: pe_doc:dag(),
     cost :: module(),
@@ -53,12 +67,16 @@
     handle :: pe_memo:handle(),
     calls = 0 :: non_neg_integer(),
     tainted = 0 :: non_neg_integer(),
-    memo_size = 0 :: non_neg_integer()
+    memo_size = 0 :: non_neg_integer(),
+    frontier_stats = false :: boolean(),
+    frontier_hist = #{} :: #{non_neg_integer() => non_neg_integer()},
+    frontier_max = 0 :: non_neg_integer(),
+    frontier_max_at = undefined :: undefined | pe_memo:key()
 }).
 
 -doc "Resolve a document to its optimal measure and resolver statistics.".
 -spec resolve(pe_doc:dag(), opts()) -> {pe_measure:measure(), stats()}.
-resolve(Dag, #{cost := CostMod, memo := MemoMod, width := PageWidth, limit := Limit}) ->
+resolve(Dag, #{cost := CostMod, memo := MemoMod, width := PageWidth, limit := Limit} = Opts) ->
     Handle0 = MemoMod:new(),
     RS0 = #rs{
         dag = Dag,
@@ -66,7 +84,8 @@ resolve(Dag, #{cost := CostMod, memo := MemoMod, width := PageWidth, limit := Li
         memo = MemoMod,
         page_width = PageWidth,
         limit = Limit,
-        handle = Handle0
+        handle = Handle0,
+        frontier_stats = maps:get(frontier_stats, Opts, false)
     },
     try
         {Set, RS} = resolve_node(pe_doc:root(Dag), 0, 0, RS0),
@@ -76,10 +95,16 @@ resolve(Dag, #{cost := CostMod, memo := MemoMod, width := PageWidth, limit := Li
             calls => RS#rs.calls,
             tainted => RS#rs.tainted
         },
-        {Optimal, Stats}
+        {Optimal, with_frontier(RS, Stats)}
     after
         MemoMod:dispose(Handle0)
     end.
+
+%% Add the frontier summary to stats iff frontier_stats was on (omit otherwise).
+with_frontier(#rs{frontier_stats = false}, Stats) ->
+    Stats;
+with_frontier(#rs{frontier_stats = true} = RS, Stats) ->
+    Stats#{frontier => frontier_summary(RS)}.
 
 %%%-------------------------------------------------------------------
 %%% ⇓RS — resolve a node under a printing context
@@ -109,9 +134,34 @@ resolve_node(Id, C, I, RS0) ->
                             true -> RS1#rs.tainted + 1;
                             false -> RS1#rs.tainted
                         end,
-                    {Set, RS1#rs{handle = H1, memo_size = RS1#rs.memo_size + 1, tainted = Tainted}}
+                    RS2 = RS1#rs{handle = H1, memo_size = RS1#rs.memo_size + 1, tainted = Tainted},
+                    {Set, sample_frontier(Key, Set, RS2)}
             end
     end.
+
+%% Frontier sampling at the single memo-put seam. The first clause (flag off) is
+%% one boolean field read and returns immediately — no length/1, no map update —
+%% so the off path does zero per-element work. On a fresh `{set, Ms}', record its
+%% width; tainted sets contribute nothing (already counted by `tainted').
+-spec sample_frontier(pe_memo:key(), pe_mset:mset(), #rs{}) -> #rs{}.
+sample_frontier(_Key, _Set, #rs{frontier_stats = false} = RS) ->
+    RS;
+sample_frontier(Key, {set, Ms}, #rs{frontier_stats = true} = RS) ->
+    Width = length(Ms),
+    Hist = RS#rs.frontier_hist,
+    PrevMax = RS#rs.frontier_max,
+    MaxAt =
+        case Width > PrevMax of
+            true -> Key;
+            false -> RS#rs.frontier_max_at
+        end,
+    RS#rs{
+        frontier_hist = Hist#{Width => maps:get(Width, Hist, 0) + 1},
+        frontier_max = max(PrevMax, Width),
+        frontier_max_at = MaxAt
+    };
+sample_frontier(_Key, {tainted, _}, #rs{frontier_stats = true} = RS) ->
+    RS.
 
 -spec compute_node(pe_doc:id(), non_neg_integer(), non_neg_integer(), #rs{}) ->
     {pe_mset:mset(), #rs{}}.
@@ -221,3 +271,46 @@ leftmost(Dag, Id) ->
         {align, D} -> {align, leftmost(Dag, D)};
         {choice, A, _B} -> leftmost(Dag, A)
     end.
+
+%%%-------------------------------------------------------------------
+%%% Frontier-width summary (only built when frontier_stats is on)
+%%%-------------------------------------------------------------------
+
+-spec frontier_summary(#rs{}) -> map().
+frontier_summary(#rs{frontier_hist = Hist, frontier_max = Max, frontier_max_at = MaxAt}) ->
+    Pairs = lists:sort(maps:to_list(Hist)),
+    Count = lists:sum([N || {_W, N} <- Pairs]),
+    Sum = lists:sum([W * N || {W, N} <- Pairs]),
+    Mean =
+        case Count of
+            0 -> 0.0;
+            _ -> Sum / Count
+        end,
+    #{
+        max => Max,
+        mean => Mean,
+        p50 => percentile(50, Pairs, Count),
+        p90 => percentile(90, Pairs, Count),
+        p99 => percentile(99, Pairs, Count),
+        count => Count,
+        histogram => Hist,
+        max_at => MaxAt
+    }.
+
+%% Nearest-rank percentile over a width->count frequency list sorted ascending.
+-spec percentile(non_neg_integer(), [{non_neg_integer(), non_neg_integer()}], non_neg_integer()) ->
+    non_neg_integer().
+percentile(_P, _Pairs, 0) ->
+    0;
+percentile(P, Pairs, Count) ->
+    Rank = max(1, ceil(P * Count / 100)),
+    pick_rank(Pairs, Rank, 0).
+
+pick_rank([{W, N} | Rest], Rank, Acc) ->
+    Acc1 = Acc + N,
+    case Acc1 >= Rank of
+        true -> W;
+        false -> pick_rank(Rest, Rank, Acc1)
+    end;
+pick_rank([], _Rank, _Acc) ->
+    0.

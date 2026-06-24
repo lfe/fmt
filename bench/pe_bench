@@ -34,6 +34,13 @@
 %%%
 %%%     rebar3 eunit && escript bench/pe_bench lfe-files
 %%%
+%%% Frontier mode (slice7): resolve the knowledge + stress corpora and every
+%%% top-level form of the real .lfe files with frontier_stats on, dumping the
+%%% per-memo-entry Pareto frontier-width (|mset|) distribution and the max/W
+%%% ratio to bench/results/frontier.csv (settles the niceness bet).
+%%%
+%%%     rebar3 eunit && escript bench/pe_bench frontier
+%%%
 %%% It draws no conclusions — it emits the tables and CSVs under bench/results/.
 
 -mode(compile).
@@ -54,6 +61,8 @@ main(["lfe-refined"]) ->
     with_lfe_bench(fun pe_lfe_bench:run_refined/0);
 main(["lfe-files"]) ->
     with_lfe_bench(fun pe_lfe_bench:run_files/0);
+main(["frontier"]) ->
+    with_lfe_bench(fun pe_lfe_bench:run_frontier/0);
 main(_Args) ->
     case code:ensure_loaded(pe_resolve) of
         {module, pe_resolve} ->
