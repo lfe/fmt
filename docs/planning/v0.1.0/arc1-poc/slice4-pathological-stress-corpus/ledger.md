@@ -88,6 +88,12 @@ At closure, fill in:
 
 ## Closure
 
-Closed at commit: pending (`HEAD 0d0e812` + working tree).
+Closed at commit `96dcdfd` on 2026-06-22 (implementation);
+bookkeeping SHA recorded 2026-06-23. Total rows: 28. Done: 26.
+Deferred: 2 (A1S4-27 OTP 22–29 backport; A1S4-28 coverage gate + CAP audit).
+No-op: 0.
 
-CDC verification: pending.
+CDC verification: static review complete — see `cdc-verification.md`
+(no blockers; all reproducible counters matched). Engineering-gate command
+re-run (A1S4-25/26: compile/eunit/ct/proper/dialyzer/xref) remains
+operator-run pending.
