@@ -100,6 +100,11 @@ At closure, fill in:
 
 ## Closure
 
-Closed at commit: pending (`HEAD aa50040` + working tree).
+Closed at commit `a2226e0` on 2026-06-23. Total rows: 26. Done: 24.
+Deferred: 2 (A1S5-25 OTP 22–29 backport; A1S5-26 coverage gate + CAP audit).
+No-op: 0.
 
-CDC verification: pending.
+CDC verification: static review complete — see `cdc-verification.md`
+(no blockers; both A1-R013/R014 caveats resolved with exact-assertion golden
+tests; scope-control rows confirmed). Engineering-gate command re-run
+(A1S5-23/24) remains operator-run pending.
