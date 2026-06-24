@@ -207,7 +207,7 @@ because the current slice is moving on.
 
 ### A1-R013: Add context-sensitive layout for special forms in argument position
 
-- **Status:** open
+- **Status:** addressed by slice5, keep watching
 - **Source:** Slice3 CDC verification of `lfe_08_ets_new`.
 - **Concern:** Slice3 fixed the top-level `eval-when-compile` drift, but a
   special form used as a call argument still inherits generic argument
@@ -221,12 +221,16 @@ because the current slice is moving on.
 - **Current plan:** `slice5-lfe-layout-refinements` is planned to address this
   alongside `flet`/`fletrec` binding layout, with `lfe_08_ets_new` and the
   slice4 `block_arg_*` stress samples as evidence targets.
+- **Slice5 result:** `pe_lfe` now detects `lambda`, `match-lambda`, `case`,
+  `receive`, and `cond` in generic-call argument position and lowers those
+  calls with a local block indentation. `lfe_08_ets_new` and the slice4
+  `block_arg_*` stress canaries have targeted tests and refined benchmark rows.
 - **Re-entry trigger:** Next knowledge-layer refinement slice, especially before
   judging visual quality on higher-order calls.
 
 ### A1-R014: Give `flet`/`fletrec` function bindings clause-like layout
 
-- **Status:** open
+- **Status:** addressed by slice5, keep watching
 - **Source:** Slice3 CDC verification of `lfe_20_eval_receive`.
 - **Concern:** `fletrec` itself is recognized, but its function-definition
   binding still formats through generic list layout. The result separates the
@@ -239,6 +243,11 @@ because the current slice is moving on.
 - **Current plan:** `slice5-lfe-layout-refinements` is planned to address this
   with `lfe_20_eval_receive` and the slice4 `fletrec_bindings_12` stress sample
   as evidence targets.
+- **Slice5 result:** `pe_lfe` now gives `flet`/`fletrec` bindings shaped
+  `(name (args...) body...)` a local name+args head with the body nested below
+  it, while non-function binding shapes retain the previous generic fallback.
+  `lfe_20_eval_receive` and `fletrec_bindings_12` have targeted tests and
+  refined benchmark rows.
 - **Re-entry trigger:** Next knowledge-layer refinement slice, or any corpus
   expansion involving local functions.
 
@@ -259,7 +268,7 @@ because the current slice is moving on.
 
 ### A1-R016: Keep the whole stress row inside the timeout boundary
 
-- **Status:** open
+- **Status:** addressed by slice5, keep watching
 - **Source:** Slice4 CDC review of `pe_lfe_bench:stress_row/3`.
 - **Concern:** The stress benchmark wraps resolve/render work in a monitored
   timeout, but computes `dag_size` by building the sample before entering that
@@ -272,5 +281,9 @@ because the current slice is moving on.
   targeted test if a cheap delayed-build seam becomes available.
 - **Current plan:** `slice5-lfe-layout-refinements` is planned to include this
   cleanup so future stress expansions inherit a stronger timeout boundary.
+- **Slice5 result:** `pe_lfe_bench:stress_row/3` now runs document construction,
+  `pe_doc:size/1`, resolve, render, and metric extraction inside the monitored
+  worker. Timeout/error rows report `dag_size = 0` when the worker does not
+  produce metrics.
 - **Re-entry trigger:** Before expanding the stress corpus sizes, adding
   generator-driven stress cases, or running the benchmark unattended in CI.

@@ -122,3 +122,37 @@ forced_nofit_badness_test() ->
     {Badness, _Height} = pe_measure:cost(Measure),
     ?assert(Badness > 0),
     ?assert(maps:get(tainted, Stats) > 0).
+
+%% A1S5-5/12: affected stress canaries reflect the refined layout.
+block_argument_stress_layout_test() ->
+    ?assert(block_arg_line(<<"block_arg_match_lambda">>, <<"  (match-lambda">>)),
+    ?assert(block_arg_line(<<"block_arg_lambda">>, <<"  (lambda">>)),
+    ?assert(block_arg_line(<<"block_arg_case">>, <<"  (case">>)),
+    ?assert(block_arg_line(<<"block_arg_receive">>, <<"  (receive">>)).
+
+fletrec_stress_binding_layout_test() ->
+    Bin = render_bin(pe_lfe_stress:by_id(<<"fletrec_bindings_12">>), 40),
+    Lines = lines(Bin),
+    ?assert(lists:member(<<"  ((f_1 (x_1) (+ x_1 1))">>, Lines)),
+    ?assert(lists:member(<<"   (f_2 (x_2) (+ x_2 2))">>, Lines)),
+    ?assertNot(contains(Bin, <<"\n    (x_1)\n">>)).
+
+block_arg_line(Id, Line) ->
+    Lines = lines(render_bin(pe_lfe_stress:by_id(Id), 40)),
+    lists:any(fun(L) -> starts_with(L, Line) end, Lines).
+
+starts_with(Bin, Prefix) when byte_size(Bin) >= byte_size(Prefix) ->
+    binary:part(Bin, 0, byte_size(Prefix)) =:= Prefix;
+starts_with(_Bin, _Prefix) ->
+    false.
+
+render_bin(Sample, Width) ->
+    Dag = pe_lfe_stress:build(Sample),
+    {Bin, _Measure, _Stats} = pe:format_binary(Dag, #{width => Width, limit => Width}),
+    Bin.
+
+lines(Bin) ->
+    binary:split(Bin, <<"\n">>, [global]).
+
+contains(Bin, Needle) ->
+    binary:match(Bin, Needle) =/= nomatch.

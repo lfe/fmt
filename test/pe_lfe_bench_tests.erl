@@ -130,3 +130,63 @@ stress_csv_header_and_count_test() ->
         Header
     ),
     ?assertEqual(2, length(DataLines)).
+
+%% A1S5-16..19: refined benchmark has its own column set and covers the real
+%% sample matrix plus the named affected stress subset.
+refined_columns_test() ->
+    ?assertEqual(
+        [
+            suite,
+            id,
+            label,
+            category,
+            width,
+            limit,
+            status,
+            time_us,
+            memo_size,
+            calls,
+            tainted,
+            badness,
+            height,
+            bytes,
+            lines,
+            dag_size
+        ],
+        pe_lfe_bench:refined_columns()
+    ).
+
+refined_row_count_and_subset_test() ->
+    Rows = pe_lfe_bench:refined_rows(),
+    SampleRows = [R || R <- Rows, maps:get(suite, R) =:= <<"lfe-sample">>],
+    StressRows = [R || R <- Rows, maps:get(suite, R) =:= <<"stress-affected">>],
+    ?assertEqual(85, length(Rows)),
+    ?assertEqual(60, length(SampleRows)),
+    ?assertEqual(25, length(StressRows)),
+    ?assertEqual([60, 80, 100], lists:usort([maps:get(width, R) || R <- SampleRows])),
+    ?assertEqual([20, 40, 60, 80, 100], lists:usort([maps:get(width, R) || R <- StressRows])),
+    ?assertEqual(
+        [
+            <<"block_arg_case">>,
+            <<"block_arg_lambda">>,
+            <<"block_arg_match_lambda">>,
+            <<"block_arg_receive">>,
+            <<"fletrec_bindings_12">>
+        ],
+        lists:usort([maps:get(id, R) || R <- StressRows])
+    ),
+    [?assert(maps:get(dag_size, R) > 0) || R <- Rows].
+
+refined_csv_header_and_count_test() ->
+    Rows = pe_lfe_bench:refined_rows(),
+    Csv = pe_lfe_bench:refined_to_csv(Rows),
+    Lines = binary:split(Csv, <<"\n">>, [global, trim]),
+    [Header | DataLines] = Lines,
+    ?assertEqual(
+        <<
+            "suite,id,label,category,width,limit,status,time_us,memo_size,calls,tainted,"
+            "badness,height,bytes,lines,dag_size"
+        >>,
+        Header
+    ),
+    ?assertEqual(85, length(DataLines)).

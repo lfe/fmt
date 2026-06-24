@@ -110,8 +110,8 @@ call_form([{sym, Head} | Args] = Forms, Ctx, B) ->
         <<"match-lambda">> -> clauses_block([{sym, Head}], Args, Ctx, B);
         <<"let">> -> let_form(Head, Args, Ctx, B);
         <<"let*">> -> let_form(Head, Args, Ctx, B);
-        <<"flet">> -> let_form(Head, Args, Ctx, B);
-        <<"fletrec">> -> let_form(Head, Args, Ctx, B);
+        <<"flet">> -> flet_form(Head, Args, Ctx, B);
+        <<"fletrec">> -> flet_form(Head, Args, Ctx, B);
         <<"case">> -> subject_block(Head, Args, Ctx, B);
         <<"receive">> -> receive_form(Head, Args, Ctx, B);
         <<"cond">> -> clauses_block([{sym, Head}], Args, Ctx, B);
@@ -140,6 +140,15 @@ lambda_form(Kw, [ArgList | Body], Ctx, B) ->
 
 %% (let (binding…) body…) and the flet/fletrec/let* family.
 let_form(Kw, [Bindings | Body], Ctx, B) ->
+    body_block([{sym, Kw}, Bindings], Body, Ctx, B).
+
+%% (flet ((name (args…) body…) …) body…) and fletrec equivalent.
+flet_form(Kw, [{list, Bindings} | Body], Ctx, B0) ->
+    {BindingsId, B1} = flet_bindings(Bindings, Ctx, B0),
+    {BodyIds, B2} = lower_list(Body, Ctx, B1),
+    block([{sym, Kw}], [BindingsId | BodyIds], Ctx, B2);
+flet_form(Kw, [Bindings | Body], Ctx, B) ->
+    %% Malformed or non-list binding containers retain the generic safe shape.
     body_block([{sym, Kw}, Bindings], Body, Ctx, B).
 
 %% (case subject clause…)
@@ -192,6 +201,27 @@ lower_clause({list, [Pattern | Body]}, Ctx, B0) ->
     {BodyIds, B2} = lower_list(Body, Ctx, B1),
     block_doc(PatId, BodyIds, Ctx, B2).
 
+%% Lower flet/fletrec binding lists. Function bindings get a local
+%% name+args head; other binding shapes fall back to ordinary list lowering.
+flet_bindings([], _Ctx, B0) ->
+    {O, B1} = pe_doc:text(<<"(">>, B0),
+    {C, B2} = pe_doc:text(<<")">>, B1),
+    pe_doc:concat(O, C, B2);
+flet_bindings(Bindings, Ctx, B0) ->
+    {BindingIds, B1} = lower_flet_bindings(Bindings, Ctx, B0),
+    {Body, B2} = join_nl(BindingIds, B1),
+    {Aligned, B3} = pe_doc:align(Body, B2),
+    group_parens(Aligned, B3).
+
+lower_flet_binding({list, [Name, {list, _} = Args, FirstBody | RestBody]}, Ctx, B0) ->
+    {NameId, B1} = lower(Name, Ctx, B0),
+    {ArgsId, B2} = lower(Args, Ctx, B1),
+    {HeadDoc, B3} = join_space([NameId, ArgsId], B2),
+    {BodyIds, B4} = lower_list([FirstBody | RestBody], Ctx, B3),
+    block_doc(HeadDoc, BodyIds, Ctx, B4);
+lower_flet_binding(Binding, Ctx, B) ->
+    lower(Binding, Ctx, B).
+
 %% Like block/4 but the head is an already-built doc id.
 block_doc(HeadId, BodyIds, #{indent := Indent}, B0) ->
     {BodyDoc, B1} = join_nl(BodyIds, B0),
@@ -210,6 +240,12 @@ generic_call([Single], Ctx, B0) ->
     {Id, B1} = lower(Single, Ctx, B0),
     wrap_parens(Id, B1);
 generic_call([Head | Args], Ctx, B0) ->
+    case lists:any(fun block_valued_arg/1, Args) of
+        true -> generic_block_arg_call(Head, Args, Ctx, B0);
+        false -> generic_aligned_call(Head, Args, Ctx, B0)
+    end.
+
+generic_aligned_call(Head, Args, Ctx, B0) ->
     {HeadId, B1} = lower(Head, Ctx, B0),
     {ArgIds, B2} = lower_list(Args, Ctx, B1),
     {Body, B3} = join_nl(ArgIds, B2),
@@ -218,6 +254,23 @@ generic_call([Head | Args], Ctx, B0) ->
     {HeadSp, B6} = pe_doc:concat(HeadId, Sp, B5),
     {Inner, B7} = pe_doc:concat(HeadSp, Aligned, B6),
     group_parens(Inner, B7).
+
+generic_block_arg_call(Head, Args, #{indent := Indent} = Ctx, B0) ->
+    {HeadId, B1} = lower(Head, Ctx, B0),
+    {ArgIds, B2} = lower_list(Args, Ctx, B1),
+    {Body, B3} = join_nl(ArgIds, B2),
+    {Nl, B4} = pe_doc:nl(B3),
+    {NlBody, B5} = pe_doc:concat(Nl, Body, B4),
+    {Nested, B6} = pe_doc:nest(Indent, NlBody, B5),
+    {Inner, B7} = pe_doc:concat(HeadId, Nested, B6),
+    group_parens(Inner, B7).
+
+block_valued_arg({call, [{sym, <<"lambda">>} | _]}) -> true;
+block_valued_arg({call, [{sym, <<"match-lambda">>} | _]}) -> true;
+block_valued_arg({call, [{sym, <<"case">>} | _]}) -> true;
+block_valued_arg({call, [{sym, <<"receive">>} | _]}) -> true;
+block_valued_arg({call, [{sym, <<"cond">>} | _]}) -> true;
+block_valued_arg(_) -> false.
 
 %% Bracketed data: "(item…)" / "#(item…)" with elements aligned; a group.
 aligned_brackets(Open, Close, [], _Ctx, B0) ->
@@ -271,6 +324,13 @@ lower_clauses([], _Ctx, B) ->
 lower_clauses([C | Cs], Ctx, B0) ->
     {Id, B1} = lower_clause(C, Ctx, B0),
     {Ids, B2} = lower_clauses(Cs, Ctx, B1),
+    {[Id | Ids], B2}.
+
+lower_flet_bindings([], _Ctx, B) ->
+    {[], B};
+lower_flet_bindings([F | Fs], Ctx, B0) ->
+    {Id, B1} = lower_flet_binding(F, Ctx, B0),
+    {Ids, B2} = lower_flet_bindings(Fs, Ctx, B1),
     {[Id | Ids], B2}.
 
 %% Join ids with a literal space (always inline).

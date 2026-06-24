@@ -21,6 +21,12 @@
 %%%
 %%%     rebar3 eunit && escript bench/pe_bench lfe-stress
 %%%
+%%% LFE refined mode (slice5): resolve+render all 20 real samples at widths
+%%% 60, 80, and 100 plus the affected block-argument/fletrec stress subset at
+%%% widths 20, 40, 60, 80, and 100.
+%%%
+%%%     rebar3 eunit && escript bench/pe_bench lfe-refined
+%%%
 %%% It draws no conclusions — it emits the tables and CSVs under bench/results/.
 
 -mode(compile).
@@ -37,6 +43,8 @@ main(["lfe-knowledge"]) ->
     with_lfe_bench(fun pe_lfe_bench:run_knowledge/0);
 main(["lfe-stress"]) ->
     with_lfe_bench(fun pe_lfe_bench:run_stress/0);
+main(["lfe-refined"]) ->
+    with_lfe_bench(fun pe_lfe_bench:run_refined/0);
 main(_Args) ->
     case code:ensure_loaded(pe_resolve) of
         {module, pe_resolve} ->

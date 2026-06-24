@@ -1,0 +1,86 @@
+suite,id,label,category,width,limit,status,time_us,memo_size,calls,tainted,badness,height,bytes,lines,dag_size
+lfe-sample,lfe_01_ackermann,ackermann/2 multi-clause defun,real-sample,60,60,ok,286,483,578,17,0,3,119,4,180
+lfe-sample,lfe_02_fizz,fizz/3 string clauses,real-sample,60,60,ok,127,251,332,17,0,4,87,5,139
+lfe-sample,lfe_03_buzz1,buzz1/1 guarded head,real-sample,60,60,ok,134,279,317,0,0,0,59,1,109
+lfe-sample,lfe_04_tail_buzz,tail-buzz/2 tail recursion,real-sample,60,60,ok,191,392,452,17,0,2,118,3,154
+lfe-sample,lfe_05_plusplus,++ macro with quasiquote/rest,real-sample,60,60,ok,138,307,349,29,0,3,77,4,121
+lfe-sample,lfe_06_cond,cond macro expanding to if,real-sample,60,60,ok,271,457,527,39,0,4,147,5,181
+lfe-sample,lfe_07_bq_expand,bq-expand inside eval-when-compile,real-sample,60,60,ok,612,838,961,133,0,9,296,10,287
+lfe-sample,lfe_08_ets_new,ets-demo new/0 with match-lambda,real-sample,60,60,ok,257,563,637,112,0,8,258,9,217
+lfe-sample,lfe_09_by_place_ms,by_place_ms/2 match-spec,real-sample,60,60,ok,109,250,290,26,0,1,89,2,123
+lfe-sample,lfe_10_mnesia_new,mnesia-demo new/0 transaction,real-sample,60,60,ok,154,264,295,65,0,4,189,5,118
+lfe-sample,lfe_11_guess_server,guess-server/1 receive loop,real-sample,60,60,ok,194,388,431,75,0,6,165,7,150
+lfe-sample,lfe_12_ping_pong,ping-pong gen_server callbacks,real-sample,60,60,ok,303,486,558,98,0,6,199,7,179
+lfe-sample,lfe_13_get_page,get-page/1 async httpc,real-sample,60,60,ok,436,669,773,90,0,8,292,9,265
+lfe-sample,lfe_14_fish_closure,fish-class/3 closure object,real-sample,60,60,ok,276,436,492,73,0,8,249,9,179
+lfe-sample,lfe_15_fish_process,fish-class/3 process loop,real-sample,60,60,ok,254,417,484,75,0,6,219,7,175
+lfe-sample,lfe_16_account,account-class/3 cond receive,real-sample,60,60,ok,297,603,688,150,0,10,338,11,230
+lfe-sample,lfe_17_eval_expr,eval-expr/2 central case,real-sample,60,60,ok,429,699,818,57,0,7,269,8,304
+lfe-sample,lfe_18_parse_bitspecs,parse-bitspecs/3 let/case nesting,real-sample,60,60,ok,385,562,655,54,0,4,206,5,224
+lfe-sample,lfe_19_eval_lambda,eval-lambda/2 arity dispatch,real-sample,60,60,ok,383,574,707,53,0,6,217,7,255
+lfe-sample,lfe_20_eval_receive,eval-receive/2 fletrec + after,real-sample,60,60,ok,350,523,597,139,0,8,245,9,196
+lfe-sample,lfe_01_ackermann,ackermann/2 multi-clause defun,real-sample,80,80,ok,321,513,611,21,0,3,119,4,180
+lfe-sample,lfe_02_fizz,fizz/3 string clauses,real-sample,80,80,ok,127,280,363,0,0,0,79,1,139
+lfe-sample,lfe_03_buzz1,buzz1/1 guarded head,real-sample,80,80,ok,129,279,317,0,0,0,59,1,109
+lfe-sample,lfe_04_tail_buzz,tail-buzz/2 tail recursion,real-sample,80,80,ok,196,421,484,19,0,2,118,3,154
+lfe-sample,lfe_05_plusplus,++ macro with quasiquote/rest,real-sample,80,80,ok,144,318,360,0,0,0,71,1,121
+lfe-sample,lfe_06_cond,cond macro expanding to if,real-sample,80,80,ok,296,499,572,21,0,3,143,4,181
+lfe-sample,lfe_07_bq_expand,bq-expand inside eval-when-compile,real-sample,80,80,ok,606,949,1079,146,0,9,296,10,287
+lfe-sample,lfe_08_ets_new,ets-demo new/0 with match-lambda,real-sample,80,80,ok,352,641,721,96,0,6,226,7,217
+lfe-sample,lfe_09_by_place_ms,by_place_ms/2 match-spec,real-sample,80,80,ok,121,288,331,24,0,1,89,2,123
+lfe-sample,lfe_10_mnesia_new,mnesia-demo new/0 transaction,real-sample,80,80,ok,164,323,359,64,0,4,189,5,118
+lfe-sample,lfe_11_guess_server,guess-server/1 receive loop,real-sample,80,80,ok,212,447,494,65,0,6,165,7,150
+lfe-sample,lfe_12_ping_pong,ping-pong gen_server callbacks,real-sample,80,80,ok,352,541,619,94,0,4,183,5,179
+lfe-sample,lfe_13_get_page,get-page/1 async httpc,real-sample,80,80,ok,459,744,855,82,0,4,211,5,265
+lfe-sample,lfe_14_fish_closure,fish-class/3 closure object,real-sample,80,80,ok,313,504,565,76,0,5,201,6,179
+lfe-sample,lfe_15_fish_process,fish-class/3 process loop,real-sample,80,80,ok,271,457,528,36,0,3,201,4,175
+lfe-sample,lfe_16_account,account-class/3 cond receive,real-sample,80,80,ok,335,690,779,129,0,6,268,7,230
+lfe-sample,lfe_17_eval_expr,eval-expr/2 central case,real-sample,80,80,ok,467,744,867,57,0,6,263,7,304
+lfe-sample,lfe_18_parse_bitspecs,parse-bitspecs/3 let/case nesting,real-sample,80,80,ok,411,621,719,72,0,4,206,5,224
+lfe-sample,lfe_19_eval_lambda,eval-lambda/2 arity dispatch,real-sample,80,80,ok,413,616,753,26,0,4,209,5,255
+lfe-sample,lfe_20_eval_receive,eval-receive/2 fletrec + after,real-sample,80,80,ok,304,603,683,138,0,6,223,7,196
+lfe-sample,lfe_01_ackermann,ackermann/2 multi-clause defun,real-sample,100,100,ok,304,543,643,29,0,3,119,4,180
+lfe-sample,lfe_02_fizz,fizz/3 string clauses,real-sample,100,100,ok,134,280,363,0,0,0,79,1,139
+lfe-sample,lfe_03_buzz1,buzz1/1 guarded head,real-sample,100,100,ok,133,279,317,0,0,0,59,1,109
+lfe-sample,lfe_04_tail_buzz,tail-buzz/2 tail recursion,real-sample,100,100,ok,257,458,524,32,0,2,118,3,154
+lfe-sample,lfe_05_plusplus,++ macro with quasiquote/rest,real-sample,100,100,ok,151,318,360,0,0,0,71,1,121
+lfe-sample,lfe_06_cond,cond macro expanding to if,real-sample,100,100,ok,296,521,595,24,0,3,143,4,181
+lfe-sample,lfe_07_bq_expand,bq-expand inside eval-when-compile,real-sample,100,100,ok,729,1071,1211,124,0,7,276,8,287
+lfe-sample,lfe_08_ets_new,ets-demo new/0 with match-lambda,real-sample,100,100,ok,402,699,784,80,0,5,218,6,217
+lfe-sample,lfe_09_by_place_ms,by_place_ms/2 match-spec,real-sample,100,100,ok,123,293,336,0,0,0,87,1,123
+lfe-sample,lfe_10_mnesia_new,mnesia-demo new/0 transaction,real-sample,100,100,ok,193,375,414,27,0,2,139,3,118
+lfe-sample,lfe_11_guess_server,guess-server/1 receive loop,real-sample,100,100,ok,231,487,537,37,0,3,147,4,150
+lfe-sample,lfe_12_ping_pong,ping-pong gen_server callbacks,real-sample,100,100,ok,329,588,670,83,0,3,177,4,179
+lfe-sample,lfe_13_get_page,get-page/1 async httpc,real-sample,100,100,ok,484,810,926,65,0,4,211,5,265
+lfe-sample,lfe_14_fish_closure,fish-class/3 closure object,real-sample,100,100,ok,298,556,620,85,0,5,201,6,179
+lfe-sample,lfe_15_fish_process,fish-class/3 process loop,real-sample,100,100,ok,271,501,576,46,0,3,201,4,175
+lfe-sample,lfe_16_account,account-class/3 cond receive,real-sample,100,100,ok,452,792,891,130,0,5,258,6,230
+lfe-sample,lfe_17_eval_expr,eval-expr/2 central case,real-sample,100,100,ok,497,793,919,60,0,6,263,7,304
+lfe-sample,lfe_18_parse_bitspecs,parse-bitspecs/3 let/case nesting,real-sample,100,100,ok,451,691,794,86,0,4,206,5,224
+lfe-sample,lfe_19_eval_lambda,eval-lambda/2 arity dispatch,real-sample,100,100,ok,399,641,780,28,0,4,209,5,255
+lfe-sample,lfe_20_eval_receive,eval-receive/2 fletrec + after,real-sample,100,100,ok,310,658,740,115,0,6,223,7,196
+stress-affected,block_arg_match_lambda,match-lambda as call argument,block-argument,20,20,ok,195,134,160,63,3364,0,78,1,86
+stress-affected,block_arg_lambda,lambda as call argument,block-argument,20,20,ok,96,83,93,28,0,3,54,4,49
+stress-affected,block_arg_case,case as call argument,block-argument,20,20,ok,127,126,140,66,1681,0,61,1,74
+stress-affected,block_arg_receive,receive as call argument,block-argument,20,20,ok,115,115,131,42,0,5,84,6,70
+stress-affected,fletrec_bindings_12,fletrec with 12 local functions,binding-list,20,20,ok,946,654,950,168,0,25,392,26,501
+stress-affected,block_arg_match_lambda,match-lambda as call argument,block-argument,40,40,ok,201,214,249,44,0,4,90,5,86
+stress-affected,block_arg_lambda,lambda as call argument,block-argument,40,40,ok,97,112,124,10,0,2,50,3,49
+stress-affected,block_arg_case,case as call argument,block-argument,40,40,ok,152,184,203,37,0,3,71,4,74
+stress-affected,block_arg_receive,receive as call argument,block-argument,40,40,ok,149,166,187,29,0,3,72,4,70
+stress-affected,fletrec_bindings_12,fletrec with 12 local functions,binding-list,40,40,ok,948,757,1102,43,0,13,332,14,501
+stress-affected,block_arg_match_lambda,match-lambda as call argument,block-argument,60,60,ok,200,251,290,26,0,2,82,3,86
+stress-affected,block_arg_lambda,lambda as call argument,block-argument,60,60,ok,98,114,126,0,0,0,46,1,49
+stress-affected,block_arg_case,case as call argument,block-argument,60,60,ok,154,208,228,2,0,1,63,2,74
+stress-affected,block_arg_receive,receive as call argument,block-argument,60,60,ok,155,187,209,8,0,1,64,2,70
+stress-affected,fletrec_bindings_12,fletrec with 12 local functions,binding-list,60,60,ok,956,830,1181,46,0,13,332,14,501
+stress-affected,block_arg_match_lambda,match-lambda as call argument,block-argument,80,80,ok,200,265,304,0,0,0,78,1,86
+stress-affected,block_arg_lambda,lambda as call argument,block-argument,80,80,ok,94,114,126,0,0,0,46,1,49
+stress-affected,block_arg_case,case as call argument,block-argument,80,80,ok,147,208,228,0,0,0,61,1,74
+stress-affected,block_arg_receive,receive as call argument,block-argument,80,80,ok,147,188,210,0,0,0,62,1,70
+stress-affected,fletrec_bindings_12,fletrec with 12 local functions,binding-list,80,80,ok,929,896,1252,44,0,13,332,14,501
+stress-affected,block_arg_match_lambda,match-lambda as call argument,block-argument,100,100,ok,195,265,304,0,0,0,78,1,86
+stress-affected,block_arg_lambda,lambda as call argument,block-argument,100,100,ok,92,114,126,0,0,0,46,1,49
+stress-affected,block_arg_case,case as call argument,block-argument,100,100,ok,145,208,228,0,0,0,61,1,74
+stress-affected,block_arg_receive,receive as call argument,block-argument,100,100,ok,144,188,210,0,0,0,62,1,70
+stress-affected,fletrec_bindings_12,fletrec with 12 local functions,binding-list,100,100,ok,959,963,1324,46,0,13,332,14,501

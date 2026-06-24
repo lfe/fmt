@@ -10,6 +10,8 @@ fmt(Form, Width) ->
     Bin.
 
 sym(B) -> {sym, B}.
+lst(Fs) -> {list, Fs}.
+call(Fs) -> {call, Fs}.
 
 %%%-------------------------------------------------------------------
 %%% A1S3-4: generic fallback for the data/call forms
@@ -46,7 +48,9 @@ prefix_forms_test() ->
     ?assertEqual(<<"`foo">>, fmt({bquote, sym(<<"foo">>)}, 80)),
     ?assertEqual(<<",foo">>, fmt({unquote, sym(<<"foo">>)}, 80)),
     ?assertEqual(<<"'(a b)">>, fmt({quote, {list, [sym(<<"a">>), sym(<<"b">>)]}}, 80)),
-    ?assertEqual(<<"`#(a ,b)">>, fmt({bquote, {tuple, [sym(<<"a">>), {unquote, sym(<<"b">>)}]}}, 80)).
+    ?assertEqual(
+        <<"`#(a ,b)">>, fmt({bquote, {tuple, [sym(<<"a">>), {unquote, sym(<<"b">>)}]}}, 80)
+    ).
 
 %%%-------------------------------------------------------------------
 %%% A1S3-2: symbols are binaries; no atoms are minted from input
@@ -159,6 +163,81 @@ receive_after_test() ->
     ?assert(contains(Bin, <<"(after timeout ">>)).
 
 %%%-------------------------------------------------------------------
+%%% A1S5: block-valued call arguments and flet/fletrec bindings
+%%%-------------------------------------------------------------------
+
+block_valued_call_arguments_test_() ->
+    [
+        ?_assert(block_arg_has_local_indent(<<"lambda">>)),
+        ?_assert(block_arg_has_local_indent(<<"match-lambda">>)),
+        ?_assert(block_arg_has_local_indent(<<"case">>)),
+        ?_assert(block_arg_has_local_indent(<<"receive">>)),
+        ?_assert(block_arg_has_local_indent(<<"cond">>))
+    ].
+
+lfe_08_match_lambda_argument_test() ->
+    Bin = render_sample(lfe_08_ets_new, 80),
+    Lines = lines(Bin),
+    ?assert(lists:member(<<"    (lists:foreach">>, Lines)),
+    ?assert(lists:member(<<"      (match-lambda">>, Lines)),
+    ?assert(max_indent(Bin) =< 10).
+
+top_level_block_forms_stay_readable_test() ->
+    ?assertEqual(<<"(lambda (x)\n  (work x))">>, fmt(lambda_arg(), 18)),
+    ?assert(contains(fmt(match_lambda_arg(), 24), <<"(match-lambda\n  ((x) (handle x))">>)),
+    ?assert(contains(fmt(case_arg(), 24), <<"(case event\n  ('ok (handle-ok))">>)),
+    ?assert(contains(fmt(receive_arg(), 24), <<"(receive\n  (msg (handle msg))">>)),
+    ?assert(contains(fmt(cond_arg(), 24), <<"(cond\n  ((> x 0) x)">>)).
+
+flet_function_binding_layout_test() ->
+    Bin = fmt(
+        call([
+            sym(<<"flet">>),
+            lst([
+                lst([
+                    sym(<<"twice">>),
+                    lst([sym(<<"x">>)]),
+                    call([sym(<<"+">>), sym(<<"x">>), sym(<<"x">>)])
+                ])
+            ]),
+            call([sym(<<"twice">>), {int, 21}])
+        ]),
+        32
+    ),
+    ?assert(contains(Bin, <<"((twice (x) (+ x x)))">>)).
+
+fletrec_function_binding_body_layout_test() ->
+    Bin = fmt(
+        call([
+            sym(<<"fletrec">>),
+            lst([lst([sym(<<"loop">>), lst([sym(<<"q">>)]), receive_arg()])]),
+            call([sym(<<"loop">>), lst([])])
+        ]),
+        48
+    ),
+    Lines = lines(Bin),
+    ?assert(lists:member(<<"  ((loop (q)">>, Lines)),
+    ?assert(lists:member(<<"     (receive">>, Lines)).
+
+flet_non_function_binding_fallback_test() ->
+    Bin = fmt(
+        call([
+            sym(<<"flet">>),
+            lst([lst([sym(<<"x">>), {int, 1}])]),
+            sym(<<"x">>)
+        ]),
+        80
+    ),
+    ?assertEqual(<<"(flet ((x 1)) x)">>, Bin).
+
+lfe_20_fletrec_binding_test() ->
+    Bin = render_sample(lfe_20_eval_receive, 80),
+    Lines = lines(Bin),
+    ?assert(lists:member(<<"    ((loop (q)">>, Lines)),
+    ?assert(lists:member(<<"       (receive">>, Lines)),
+    ?assertNot(contains(Bin, <<"\n      (q)\n">>)).
+
+%%%-------------------------------------------------------------------
 %%% Helpers
 %%%-------------------------------------------------------------------
 
@@ -171,6 +250,54 @@ lines(Bin) ->
 
 contains(Bin, Needle) ->
     binary:match(Bin, Needle) =/= nomatch.
+
+block_arg_has_local_indent(Kw) ->
+    Bin = fmt(call([sym(<<"outer">>), block_arg(Kw), sym(<<"tail">>)]), 24),
+    Lines = lines(Bin),
+    lists:member(<<"(outer">>, Lines) andalso
+        lists:member(<<"  (", Kw/binary>>, [line_head(L, byte_size(Kw) + 3) || L <- Lines]) andalso
+        max_indent(Bin) =< 6.
+
+line_head(Line, N) when byte_size(Line) >= N ->
+    binary:part(Line, 0, N);
+line_head(Line, _N) ->
+    Line.
+
+block_arg(<<"lambda">>) -> lambda_arg();
+block_arg(<<"match-lambda">>) -> match_lambda_arg();
+block_arg(<<"case">>) -> case_arg();
+block_arg(<<"receive">>) -> receive_arg();
+block_arg(<<"cond">>) -> cond_arg().
+
+lambda_arg() ->
+    call([sym(<<"lambda">>), lst([sym(<<"x">>)]), call([sym(<<"work">>), sym(<<"x">>)])]).
+
+match_lambda_arg() ->
+    call([
+        sym(<<"match-lambda">>), lst([lst([sym(<<"x">>)]), call([sym(<<"handle">>), sym(<<"x">>)])])
+    ]).
+
+case_arg() ->
+    call([
+        sym(<<"case">>),
+        sym(<<"event">>),
+        lst([{quote, sym(<<"ok">>)}, call([sym(<<"handle-ok">>)])]),
+        lst([sym(<<"x">>), call([sym(<<"handle-error">>), sym(<<"x">>)])])
+    ]).
+
+receive_arg() ->
+    call([
+        sym(<<"receive">>),
+        lst([sym(<<"msg">>), call([sym(<<"handle">>), sym(<<"msg">>)])]),
+        lst([sym(<<"after">>), {int, 10}, sym(<<"timeout">>)])
+    ]).
+
+cond_arg() ->
+    call([
+        sym(<<"cond">>),
+        lst([call([sym(<<">">>), sym(<<"x">>), {int, 0}]), sym(<<"x">>)]),
+        lst([{quote, sym(<<"true">>)}, {int, 0}])
+    ]).
 
 max_indent(Bin) ->
     lists:max([indent(L) || L <- lines(Bin)]).
