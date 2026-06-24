@@ -1,5 +1,5 @@
 #!/usr/bin/env escript
-%%! -pa _build/default/lib/fmt/ebin -pa _build/test/lib/fmt/ebin -pa _build/test/lib/fmt/test
+%%! -pa _build/default/lib/fmt/ebin -pa _build/test/lib/fmt/ebin -pa _build/test/lib/fmt/test -pa _build/test/lib/lfe/ebin
 %%% -*- erlang -*-
 %%%
 %%% pe_bench — the experiment harness for arc1-poc.
@@ -27,6 +27,13 @@
 %%%
 %%%     rebar3 eunit && escript bench/pe_bench lfe-refined
 %%%
+%%% LFE whole-file mode (slice6): read+convert real .lfe files (cl.lfe, clj.lfe,
+%%% and the LFE test/*.lfe suites, located via code:lib_dir(lfe)) and report
+%%% whole-file formatter latency (Σ per-form format) at widths 60/80/100, each
+%%% file in a monitored worker. These are LATENCY numbers, not fidelity.
+%%%
+%%%     rebar3 eunit && escript bench/pe_bench lfe-files
+%%%
 %%% It draws no conclusions — it emits the tables and CSVs under bench/results/.
 
 -mode(compile).
@@ -45,6 +52,8 @@ main(["lfe-stress"]) ->
     with_lfe_bench(fun pe_lfe_bench:run_stress/0);
 main(["lfe-refined"]) ->
     with_lfe_bench(fun pe_lfe_bench:run_refined/0);
+main(["lfe-files"]) ->
+    with_lfe_bench(fun pe_lfe_bench:run_files/0);
 main(_Args) ->
     case code:ensure_loaded(pe_resolve) of
         {module, pe_resolve} ->

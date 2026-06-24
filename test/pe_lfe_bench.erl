@@ -24,7 +24,11 @@
     refined_rows/0,
     refined_to_csv/1,
     run_refined/0,
-    monitored/2
+    monitored/2,
+    files_columns/0,
+    files_row/3,
+    files_to_csv/1,
+    run_files/0
 ]).
 
 -define(REPEATS, 5).
@@ -38,6 +42,8 @@
     <<"fletrec_bindings_12">>
 ]).
 -define(STRESS_TIMEOUT_MS, 5000).
+-define(FILES_WIDTHS, [60, 80, 100]).
+-define(FILES_TIMEOUT_MS, 30000).
 
 -spec columns() -> [atom()].
 columns() ->
@@ -203,6 +209,200 @@ run_to(Path, Widths, Title) ->
     ok = file:write_file(Path, to_csv(Rows)),
     io:format("~nWrote ~s (~b rows)~n", [Path, length(Rows)]),
     Rows.
+
+%%%-------------------------------------------------------------------
+%%% Slice6 lfe-files mode: real whole-file formatter latency
+%%%-------------------------------------------------------------------
+
+-spec files_columns() -> [atom()].
+files_columns() ->
+    [
+        file,
+        width,
+        status,
+        n_forms,
+        bytes,
+        lines,
+        parse_us,
+        fmt_us,
+        worst_form_us,
+        worst_form_index,
+        worst_form_head,
+        memo_size,
+        calls,
+        tainted,
+        badness,
+        dag_size,
+        genericised
+    ].
+
+%% Whole-file latency for one reference file at one width, in a monitored worker
+%% with a generous timeout. The headline metric is `fmt_us' = Σ(per-form
+%% pe_lfe:format_binary); `parse_us' (read+convert) is timed separately. A read,
+%% convert, or format failure becomes a status row — never a hang, never an
+%% aborted run.
+-spec files_row(file:name_all(), non_neg_integer(), timeout()) -> #{atom() => term()}.
+files_row(Path, Width, TimeoutMs) ->
+    Base = #{file => list_to_binary(filename:basename(Path)), width => Width},
+    case monitored(fun() -> file_metrics(Path, Width) end, TimeoutMs) of
+        {ok, _WorkerUs, Metrics} ->
+            maps:merge(Base#{status => ok}, Metrics);
+        timeout ->
+            failed_files_row(Base, timeout);
+        {error, Reason} ->
+            io:format("lfe-files error: ~s width=~b reason=~p~n", [
+                filename:basename(Path), Width, Reason
+            ]),
+            failed_files_row(Base, error)
+    end.
+
+%% Read+convert (timed as parse_us), then format every top-level form (each
+%% timed; summed as fmt_us), aggregating stable counters and tracking the worst
+%% single form.
+file_metrics(Path, Width) ->
+    T0 = erlang:monotonic_time(microsecond),
+    {ok, Forms} = pe_lfe_read:read_file(Path),
+    ParseUs = erlang:monotonic_time(microsecond) - T0,
+    Indexed = lists:zip(lists:seq(1, length(Forms)), Forms),
+    PerForm = [form_metrics(Index, Form, Width) || {Index, Form} <- Indexed],
+    Worst = worst_by(time_us, PerForm),
+    #{
+        n_forms => length(Forms),
+        bytes => sum(bytes, PerForm),
+        lines => sum(lines, PerForm),
+        parse_us => ParseUs,
+        fmt_us => sum(time_us, PerForm),
+        worst_form_us => get0(time_us, Worst),
+        worst_form_index => get0(index, Worst),
+        worst_form_head => get_head(Worst),
+        memo_size => sum(memo_size, PerForm),
+        calls => sum(calls, PerForm),
+        tainted => sum(tainted, PerForm),
+        badness => sum(badness, PerForm),
+        dag_size => sum(dag_size, PerForm),
+        genericised => length([1 || M <- PerForm, maps:get(genericised, M)])
+    }.
+
+%% Per-form metrics. `time_us' covers pe_lfe:format_binary (lower+resolve+render)
+%% so it sums to the whole-file fmt_us; dag size is taken separately (untimed).
+form_metrics(Index, Form, Width) ->
+    Opts = #{width => Width},
+    Start = erlang:monotonic_time(microsecond),
+    {Bin, Measure, Stats, Genericised} = pe_lfe_read:safe_format_binary(Form, Opts),
+    TimeUs = erlang:monotonic_time(microsecond) - Start,
+    {Badness, _Height} = pe_measure:cost(Measure),
+    #{
+        index => Index,
+        head => form_head(Form),
+        time_us => TimeUs,
+        bytes => byte_size(Bin),
+        lines => count_char(Bin, $\n) + 1,
+        memo_size => maps:get(memo_size, Stats),
+        calls => maps:get(calls, Stats),
+        tainted => maps:get(tainted, Stats),
+        badness => Badness,
+        dag_size => safe_dag_size(Form),
+        genericised => Genericised
+    }.
+
+%% The head symbol of a form, for diagnostics (which form dominates).
+form_head({call, [{sym, H} | _]}) -> H;
+form_head({call, _}) -> <<"(call)">>;
+form_head({Tag, _}) when is_atom(Tag) -> atom_to_binary(Tag, utf8);
+form_head(_) -> <<"?">>.
+
+safe_dag_size(Form) ->
+    try pe_doc:size(pe_lfe:to_doc(Form)) of
+        N -> N
+    catch
+        _:_ -> pe_doc:size(pe_lfe:to_doc(pe_lfe_read:genericize(Form)))
+    end.
+
+sum(Key, Maps) -> lists:sum([maps:get(Key, M) || M <- Maps]).
+
+worst_by(_Key, []) -> undefined;
+worst_by(Key, [M | Ms]) -> worst_by(Key, Ms, M).
+worst_by(_Key, [], Best) -> Best;
+worst_by(Key, [M | Ms], Best) ->
+    case maps:get(Key, M) > maps:get(Key, Best) of
+        true -> worst_by(Key, Ms, M);
+        false -> worst_by(Key, Ms, Best)
+    end.
+
+get0(_Key, undefined) -> 0;
+get0(Key, Map) -> maps:get(Key, Map).
+
+get_head(undefined) -> <<"-">>;
+get_head(Map) -> maps:get(head, Map).
+
+failed_files_row(Base, Status) ->
+    maps:merge(Base#{status => Status}, #{
+        n_forms => 0,
+        bytes => 0,
+        lines => 0,
+        parse_us => 0,
+        fmt_us => 0,
+        worst_form_us => 0,
+        worst_form_index => 0,
+        worst_form_head => <<"-">>,
+        memo_size => 0,
+        calls => 0,
+        tainted => 0,
+        badness => 0,
+        dag_size => 0,
+        genericised => 0
+    }).
+
+%% cl.lfe, clj.lfe, and the test/*.lfe suites of the test-profile lfe dep.
+file_paths() ->
+    Dir = code:lib_dir(lfe),
+    Core = [filename:join([Dir, "src", F]) || F <- ["cl.lfe", "clj.lfe"]],
+    Tests = lists:sort(filelib:wildcard(filename:join([Dir, "test", "*.lfe"]))),
+    [P || P <- Core ++ Tests, filelib:is_regular(P)].
+
+-spec files_to_csv([#{atom() => term()}]) -> binary().
+files_to_csv(Rows) ->
+    Header = lists:join($,, [atom_to_list(C) || C <- files_columns()]),
+    Lines = [lists:join($,, [field(maps:get(C, R)) || C <- files_columns()]) || R <- Rows],
+    iolist_to_binary([lists:join($\n, [Header | Lines]), $\n]).
+
+-spec run_files() -> [#{atom() => term()}].
+run_files() ->
+    Rows = [
+        files_row(Path, Width, ?FILES_TIMEOUT_MS)
+     || Width <- ?FILES_WIDTHS, Path <- file_paths()
+    ],
+    print_files_table("real LFE whole-file latency (slice6)", Rows),
+    ok = filelib:ensure_dir("bench/results/"),
+    ok = file:write_file("bench/results/lfe_files.csv", files_to_csv(Rows)),
+    io:format("~nWrote bench/results/lfe_files.csv (~b rows)~n", [length(Rows)]),
+    Rows.
+
+print_files_table(Title, Rows) ->
+    io:format("~n== ~s (map backend, limit=width, timeout=~bms) ==~n", [Title, ?FILES_TIMEOUT_MS]),
+    io:format(
+        "~-22s ~5s ~8s ~6s ~9s ~9s ~9s ~7s ~8s ~6s~n",
+        ["file", "width", "status", "forms", "parse_us", "fmt_us", "worst_us", "tainted", "dag", "genrc"]
+    ),
+    [
+        io:format(
+            "~-22s ~5b ~8s ~6b ~9b ~9b ~9b ~7b ~8b ~6b~n",
+            [
+                maps:get(file, R),
+                maps:get(width, R),
+                atom_to_list(maps:get(status, R)),
+                maps:get(n_forms, R),
+                maps:get(parse_us, R),
+                maps:get(fmt_us, R),
+                maps:get(worst_form_us, R),
+                maps:get(tainted, R),
+                maps:get(dag_size, R),
+                maps:get(genericised, R)
+            ]
+        )
+     || R <- Rows
+    ],
+    ok.
 
 %%%-------------------------------------------------------------------
 %%% CSV (with minimal escaping for binary fields)

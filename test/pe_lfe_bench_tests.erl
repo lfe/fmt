@@ -190,3 +190,44 @@ refined_csv_header_and_count_test() ->
         Header
     ),
     ?assertEqual(85, length(DataLines)).
+
+%% A1S6-12: the lfe-files CSV column set is the documented header.
+files_columns_test() ->
+    ?assertEqual(
+        [
+            file, width, status, n_forms, bytes, lines, parse_us, fmt_us,
+            worst_form_us, worst_form_index, worst_form_head, memo_size, calls,
+            tainted, badness, dag_size, genericised
+        ],
+        pe_lfe_bench:files_columns()
+    ).
+
+files_csv_header_test() ->
+    Dir = code:lib_dir(lfe),
+    Row = pe_lfe_bench:files_row(filename:join([Dir, "src", "cl.lfe"]), 80, 30000),
+    Csv = pe_lfe_bench:files_to_csv([Row]),
+    [Header | _] = binary:split(Csv, <<"\n">>, [global, trim]),
+    ?assertEqual(
+        <<
+            "file,width,status,n_forms,bytes,lines,parse_us,fmt_us,worst_form_us,"
+            "worst_form_index,worst_form_head,memo_size,calls,tainted,badness,"
+            "dag_size,genericised"
+        >>,
+        Header
+    ).
+
+%% A1S6-9/10: a real file yields a populated ok row with separate parse/fmt times.
+files_row_ok_test() ->
+    Dir = code:lib_dir(lfe),
+    Row = pe_lfe_bench:files_row(filename:join([Dir, "src", "cl.lfe"]), 80, 30000),
+    ?assertEqual(ok, maps:get(status, Row)),
+    ?assert(maps:get(n_forms, Row) > 0),
+    ?assert(maps:get(fmt_us, Row) >= 0),
+    ?assert(maps:get(parse_us, Row) >= 0),
+    ?assert(maps:get(dag_size, Row) > 0).
+
+%% A1S6-9: a bad path becomes an error status row, never a hang or a crash.
+files_row_error_test() ->
+    Row = pe_lfe_bench:files_row("/no/such/file_xyz.lfe", 80, 2000),
+    ?assertEqual(error, maps:get(status, Row)),
+    ?assertEqual(0, maps:get(n_forms, Row)).
