@@ -83,7 +83,7 @@
 
 ## Closure
 
-Closed at commit `<slice6 SHA>` on 2026-06-23. CDC verification: pending
+Closed at commit `04cca2a` on 2026-06-23. CDC verification: pending
 (operator-run). Total rows: 20. Done: 17. Deferred: 3 (A1S6-18 faithful
 conversion / A1-R015; A1S6-19 single-document model; A1S6-20 OTP backport +
 coverage/CAP). No-op: 0.
