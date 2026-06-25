@@ -8,7 +8,7 @@ on:
     branches: [ main, release/*]
   schedule:
   - cron: "17 3 * * *"
-  
+
 jobs:
 
   core-builds:
@@ -18,8 +18,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # rebar3 only supports the 3 newest OTP majors, so each OTP version
-        # is pinned to the newest rebar3 release that still supports it.
+        # The engine currently uses OTP-27+ syntax (triple-quoted strings,
+        # `-doc`/`-moduledoc`), so the supported floor is OTP 27. The OTP 22-26
+        # rows return once the backport lands (deferred — see
+        # running-recommendations A1-R005); rebar3 is pinned per OTP major then
+        # because rebar3 only supports the 3 newest majors.
         include:
           - otp_version: '29'
             rebar3_version: '3.27'
@@ -27,12 +30,6 @@ jobs:
             rebar3_version: '3.27'
           - otp_version: '27'
             rebar3_version: '3.27'
-          - otp_version: '26'
-            rebar3_version: '3.25.1'
-          - otp_version: '25'
-            rebar3_version: '3.24.0'
-          - otp_version: '24'
-            rebar3_version: '3.21.0'
 
     steps:
     - uses: actions/checkout@v4
@@ -46,14 +43,84 @@ jobs:
       run: rebar3 compile
     - name: Xref Checks
       run: rebar3 xref
-    #- name: Dialyzer
-    #  run: rebar3 dialyzer
     - name: Proper Tests
       run: rebar3 as test do compile, proper --regressions
-    # - name: Run Tests
-    #   run: rebar3 ct -c
+    - name: Common Test
+      run: rebar3 ct
     - name: Run Unit Tests
       run: rebar3 as test eunit
+    # Coverage gate is an explicit arc deferral (running-recommendations A1-R005);
+    # wire `--min_coverage` once the coverage slice lands.
     # - name: Test Coverage
     #   run: rebar3 as test do proper -c, cover -v --min_coverage=0
 
+  dialyzer:
+    name: Dialyzer (OTP 28)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: erlef/setup-beam@v1
+      with:
+        otp-version: '28'
+        rebar3-version: '3.27'
+    # The PLT build dominates dialyzer runtime; cache it across runs, keyed on
+    # the OTP version and the dependency set.
+    - name: Cache PLT
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/rebar3
+          _build/default/*_plt
+          _build/default/*.plt
+        key: dialyzer-plt-otp28-${{ hashFiles('rebar.config', 'rebar.lock') }}
+        restore-keys: |
+          dialyzer-plt-otp28-
+    - name: Dialyzer
+      run: rebar3 dialyzer
+
+  oracle-rust:
+    name: Rust oracle (fmt + clippy + test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: test/oracle
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy, rustfmt
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: test/oracle
+    - name: Format check
+      run: cargo fmt --check
+    - name: Clippy (deny warnings)
+      run: cargo clippy --all-targets --locked -- -D warnings
+    - name: Build (release)
+      run: cargo build --release --locked
+    - name: Test
+      run: cargo test --locked
+
+  differential-oracle:
+    name: mjl differential oracle (cross-engine)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: erlef/setup-beam@v1
+      with:
+        otp-version: '28'
+        rebar3-version: '3.27'
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: test/oracle
+    - name: Build the mjl oracle binary
+      run: cargo build --release --locked
+      working-directory: test/oracle
+    - name: Compile (test profile)
+      run: rebar3 as test compile
+    # Renders random documents through both our engine and the pinned mjl
+    # reference and asserts reported-cost equality over a width sweep; exits
+    # non-zero on any divergence (or a missing binary).
+    - name: Run differential oracle
+      run: escript bench/pe_oracle 200

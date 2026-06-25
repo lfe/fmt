@@ -168,7 +168,11 @@ def_single(Kw, NameForm, []) ->
 %% clause's first element is a {list}, which is how pe_lfe detects multi-clause.
 defun_clause(C) when is_list(C) ->
     case split_improper(C, []) of
-        {proper, [Pattern, _ | _] = [Pattern | Body]} ->
+        %% A multi-clause arm: at least a pattern plus one body form. Written as
+        %% `[Pattern | [_|_] = Body]' (not `[Pattern, _ | _] = [Pattern | Body]')
+        %% to avoid OTP 29's match-alias-where-both-sides-are-constructors
+        %% warning, which `warnings_as_errors' would turn into a compile error.
+        {proper, [Pattern | [_ | _] = Body]} ->
             {list, [arglist(Pattern) | [convert(B, code) || B <- Body]]};
         _ ->
             clause(C)
