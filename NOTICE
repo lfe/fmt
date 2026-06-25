@@ -1,0 +1,19 @@
+fmt — an optimal pretty-printer / formatter for LFE
+Copyright 2026 Duncan McGreggor and contributors
+
+This product includes software derived from LFE (Lisp Flavoured Erlang).
+
+  src/pe_lfe_scan.erl is derived from lfe_scan.erl
+    Copyright Robert Virding
+    Licensed under the Apache License, Version 2.0
+    https://github.com/lfe/lfe
+
+  The original lfe_scan.erl is a continuation-passing, character-list LFE
+  scanner. pe_lfe_scan.erl adapts its scanning clauses to operate on a binary,
+  to keep line+column positions on every token, and to emit comments as trivia
+  tokens rather than discarding them. The surface grammar (symbols, numbers,
+  strings, based numbers, characters, hash forms, and comments) is ported from
+  lfe_scan; see the per-clause attributions in the module.
+
+A copy of the Apache License, Version 2.0 is available at:
+  https://www.apache.org/licenses/LICENSE-2.0
