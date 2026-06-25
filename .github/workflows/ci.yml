@@ -1,0 +1,59 @@
+name: ci
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, release/*]
+  pull_request:
+    branches: [ main, release/*]
+  schedule:
+  - cron: "17 3 * * *"
+  
+jobs:
+
+  core-builds:
+    name: Erlang ${{ matrix.otp_version }} build
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # rebar3 only supports the 3 newest OTP majors, so each OTP version
+        # is pinned to the newest rebar3 release that still supports it.
+        include:
+          - otp_version: '29'
+            rebar3_version: '3.27'
+          - otp_version: '28'
+            rebar3_version: '3.27'
+          - otp_version: '27'
+            rebar3_version: '3.27'
+          - otp_version: '26'
+            rebar3_version: '3.25.1'
+          - otp_version: '25'
+            rebar3_version: '3.24.0'
+          - otp_version: '24'
+            rebar3_version: '3.21.0'
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: erlef/setup-beam@v1
+      with:
+        otp-version: ${{ matrix.otp_version }}
+        rebar3-version: ${{ matrix.rebar3_version }}
+    - name: Check rebar3 Version
+      run: DEBUG=1 rebar3 --version
+    - name: Compile
+      run: rebar3 compile
+    - name: Xref Checks
+      run: rebar3 xref
+    #- name: Dialyzer
+    #  run: rebar3 dialyzer
+    - name: Proper Tests
+      run: rebar3 as test do compile, proper --regressions
+    # - name: Run Tests
+    #   run: rebar3 ct -c
+    - name: Run Unit Tests
+      run: rebar3 as test eunit
+    # - name: Test Coverage
+    #   run: rebar3 as test do proper -c, cover -v --min_coverage=0
+
