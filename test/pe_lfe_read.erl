@@ -1,43 +1,68 @@
-%%% @doc Test-only minimal reader bridge: real `.lfe' source -> `pe_lfe:form()'.
+%%% @doc Test-only <b>faithful</b> reader bridge: real `.lfe' source ->
+%%% `pe_lfe:form()' (arc2/slice1; evolved from slice6's lossy benchmark bridge).
 %%%
-%%% This exists only to get whole-file latency numbers (slice6). It reuses
-%%% <b>LFE's own reader</b> (`lfe_io', a test-profile dependency) rather than a
-%%% bespoke front end, then converts the read s-expressions into the
-%%% `pe_lfe:form()' term model. It is <em>not</em> a faithful formatter front
-%%% end: it does not preserve comments or source spans (LFE's reader drops
-%%% comments), and several leaf kinds are approximated (see `convert/2'). That
-%%% faithful reader is the deferred A1-R015.
+%%% It reuses <b>LFE's own reader</b> (`lfe_io', a test-profile dependency —
+%%% deliberately not flipped to a runtime dep; that is a later operator-gated
+%%% decision per the arc2 plan) and converts the parsed s-expressions to an exact
+%%% `pe_lfe:form()'. Every non-comment construct in real LFE source is modeled:
+%%% atoms, integers, floats, binaries (`#"…"'/`#B(…)'), maps (`#M(…)'), tuples,
+%%% strings, proper/improper lists, and the quote family incl. splicing
+%%% comma-at. There is <b>no fallback and no genericisation</b> in the reader: an
+%%% unmodeled term raises `{unmodeled_construct, _}'. The corpus AST round-trip
+%%% (`pe_lfe_roundtrip_tests') proves the modeled set is complete for real LFE.
 %%%
-%%% Atom handling: `lfe_io:read_file/1' interns atoms — that is the reader's
-%%% behaviour on the (semi-trusted) source we are formatting. This module adds
-%%% <em>no</em> `list_to_atom/1' of its own; it only converts atom -> binary via
-%%% `atom_to_binary/2', staying consistent with the knowledge layer's
-%%% binary-symbol contract.
+%%% What it does <em>not</em> preserve: comments and intra-form source spans
+%%% (LFE's reader drops comments and gives line-only positions) — that is the
+%%% slice2 boundary. `read_forms/1' captures the top-level form line (from
+%%% `lfe_io:parse_file/1' `{Sexpr, Line}') and no deeper. Two constructs are
+%%% value-faithful but lose surface syntax, because in LFE they are not distinct
+%%% objects: a character `#\x' reads as its integer, and a string `"…"' reads as
+%%% a char-list (so it is recovered via a printable-list heuristic). Restoring
+%%% the `#\'/`"' surface syntax needs the slice2 token/span layer.
+%%%
+%%% Atom handling: `lfe_io' interns atoms — that is the reader's behaviour on the
+%%% source we format. This module adds <em>no</em> `list_to_atom/1'; it only
+%%% converts atom -> binary via `atom_to_binary/2', honouring the knowledge
+%%% layer's binary-symbol contract.
 %%%
 %%% Quote-family head atoms are confirmed against LFE's grammar
 %%% (`lfe_parse.erl' reductions 7–10): `'X' -> [quote, X]', `` `X `` ->
 %%% `[backquote, X]', `,X -> [comma, X]', `,@X -> ['comma-at', X]'.
 %%%
-%%% Shape adaptation: a generic converter would emit every code list as
-%%% `{call}', but {@link pe_lfe}'s clause-bearing rules (`defun'/`defmacro'
-%%% multi-clause, `case', `receive', `cond', `match-lambda') require clauses as
-%%% `{list, [...]}'. So the bridge emits clauses for those heads as `{list}'
-%%% (structural mapping, not layout — the layout still lives entirely in
-%%% `pe_lfe'). As a belt-and-suspenders guard, {@link safe_format_binary/2}
-%%% genericises (forces `{call}` -> `{list}`) and retries on any residual
-%%% lowering crash, so formatting a converted form never throws.
+%%% Shape adaptation: a generic converter emits every code list as `{call}', but
+%%% {@link pe_lfe}'s clause-bearing rules (`defun'/`defmacro' multi-clause,
+%%% `case', `receive', `cond', `match-lambda') require clauses as `{list, [...]}'.
+%%% So the reader emits clauses for those heads as `{list}' (structural mapping,
+%%% not layout). The round-trip gate verifies this is a fixed point of
+%%% `read ∘ format'. {@link safe_format_binary/2} (genericise + retry) is retained
+%%% as <em>latency-bench</em> tooling for the slice6 harness only; the faithful
+%%% round-trip path does not use it.
 %%% @end
 -module(pe_lfe_read).
 
--export([read_file/1, convert/1, genericize/1, safe_format_binary/2]).
+-export([read_file/1, read_forms/1, convert/1, genericize/1, safe_format_binary/2]).
 
 -type ctx() :: code | data.
 
--doc "Read and convert every top-level form of an `.lfe' file.".
+-doc """
+Read every top-level form of an `.lfe' file with its source line, via
+`lfe_io:parse_file/1' (`{Sexpr, Line}'). Line is the top-level form's line only
+(intra-form spans are slice2). Conversion is faithful and total-or-crash: an
+unmodeled construct raises `{unmodeled_construct, _}'.
+""".
+-spec read_forms(file:name_all()) ->
+    {ok, [{pe_lfe:form(), pos_integer()}]} | {error, term()}.
+read_forms(Path) ->
+    case lfe_io:parse_file(Path) of
+        {ok, SexprLines} -> {ok, [{convert(S), Line} || {S, Line} <- SexprLines]};
+        {error, _} = Error -> Error
+    end.
+
+-doc "Read and convert every top-level form of an `.lfe' file (lines dropped).".
 -spec read_file(file:name_all()) -> {ok, [pe_lfe:form()]} | {error, term()}.
 read_file(Path) ->
-    case lfe_io:read_file(Path) of
-        {ok, Sexprs} -> {ok, [convert(S) || S <- Sexprs]};
+    case read_forms(Path) of
+        {ok, FormLines} -> {ok, [Form || {Form, _Line} <- FormLines]};
         {error, _} = Error -> Error
     end.
 
@@ -58,9 +83,8 @@ convert([backquote, X], _Ctx) ->
 convert([comma, X], _Ctx) ->
     {unquote, convert(X, code)};
 convert(['comma-at', X], _Ctx) ->
-    %% comma-at is splicing unquote (,@); pe_lfe:form() has no splice node, so
-    %% it is approximated as a plain unquote (drops the @). Latency, not fidelity.
-    {unquote, convert(X, code)};
+    %% splicing unquote (,@) is faithfully its own node (slice6 dropped the @).
+    {splice, convert(X, code)};
 convert([], _Ctx) ->
     %% () and the empty list are indistinguishable to the reader.
     {list, []};
@@ -68,21 +92,35 @@ convert(A, _Ctx) when is_atom(A) ->
     {sym, atom_to_binary(A, utf8)};
 convert(N, _Ctx) when is_integer(N) ->
     {int, N};
+convert(F, _Ctx) when is_float(F) ->
+    {float, F};
+convert(B, _Ctx) when is_binary(B) ->
+    %% `#"…"' and `#B(…)' both read as a binary; the literal node carries it.
+    {binary, B};
+convert(M, _Ctx) when is_map(M) ->
+    %% `#M(…)' — a literal map; keys and values are data. `maps:to_list/1' is
+    %% deterministic per map value, so both reads of a round-trip agree on order.
+    {map, [{convert(K, data), convert(V, data)} || {K, V} <- maps:to_list(M)]};
 convert(L, Ctx) when is_list(L) ->
-    %% A printable char list is (ambiguously) a string; carry it as one printed
-    %% leaf rather than exploding it into per-character integer nodes — closer
-    %% to a real formatter's node count and avoids inflating latency.
+    %% A non-empty printable char list is a string (in LFE a string *is* a
+    %% char-list — same object, so `"abc"' and `(97 98 99)' are indistinguishable
+    %% post-read). Carry it as a faithful `{str}' leaf; everything else is a
+    %% code/data list.
     case io_lib:printable_unicode_list(L) of
-        true -> fallback(L);
+        %% `lfe_io' yields a string as its raw bytes (UTF-8 already encoded), so
+        %% `list_to_binary/1' preserves them — `characters_to_binary/1' would
+        %% double-encode. A char in LFE *is* its integer, so this also covers
+        %% `#\x' (it arrives as an int; only a printable *list* becomes a `{str}').
+        true -> {str, list_to_binary(L)};
         false -> convert_list(L, Ctx)
     end;
-convert(T, Ctx) when is_tuple(T) ->
-    {tuple, [convert(E, Ctx) || E <- tuple_to_list(T)]};
+convert(T, _Ctx) when is_tuple(T) ->
+    {tuple, [convert(E, data) || E <- tuple_to_list(T)]};
 convert(Other, _Ctx) ->
-    %% float, binary (#"..."), map, fun, pid, ... — anything unmodeled. The
-    %% printed-text fallback guarantees a structurally representative leaf and
-    %% never crashes.
-    fallback(Other).
+    %% No fallback: an unmodeled construct (fun, pid, ref, port, …) crashes with
+    %% a clear error. The corpus round-trip proves the modeled set is complete
+    %% for real LFE source (A2S1-5/9).
+    error({unmodeled_construct, Other}).
 
 %% A code list is a call (with shape adaptation for clause-bearing heads); a
 %% data list (under quote/backquote) is a literal list. Improper lists become
@@ -205,10 +243,6 @@ arglist_pattern_clause(_) ->
 split_improper([H | T], Acc) -> split_improper(T, [H | Acc]);
 split_improper([], Acc) -> {proper, lists:reverse(Acc)};
 split_improper(Tail, Acc) -> {improper, lists:reverse(Acc), Tail}.
-
--spec fallback(term()) -> pe_lfe:form().
-fallback(Term) ->
-    {sym, iolist_to_binary(lfe_io:print1(Term))}.
 
 %%%-------------------------------------------------------------------
 %%% Crash-proof formatting: genericise + retry on any lowering crash

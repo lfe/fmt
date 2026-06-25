@@ -48,8 +48,10 @@ quote_family_test() ->
         {bquote, {list, [{sym, <<"a">>}, {unquote, {sym, <<"b">>}}]}},
         conv("`(a ,b)")
     ),
-    ?assertMatch(
-        {bquote, {list, [{sym, <<"a">>}, {unquote, {sym, <<"bs">>}}]}},
+    %% comma-at is now its own faithful {splice} node (slice6 collapsed it to
+    %% {unquote}, dropping the @).
+    ?assertEqual(
+        {bquote, {list, [{sym, <<"a">>}, {splice, {sym, <<"bs">>}}]}},
         conv("`(a ,@bs)")
     ).
 
@@ -75,35 +77,57 @@ code_vs_data_test() ->
     ).
 
 %%%-------------------------------------------------------------------
-%%% A1S6-6: unmodeled leaves hit the printed-text fallback, never crash
+%%% A2S1-2/4/5: faithful leaves; no fallback (unmodeled crashes)
 %%%-------------------------------------------------------------------
 
-fallback_no_crash_test() ->
-    %% feed each unmodeled kind directly; each must yield a {sym, binary} leaf.
-    [
-        ?assertMatch({sym, B} when is_binary(B), pe_lfe_read:convert(Term))
-     || Term <- [
-            1.5,
-            -0.25,
-            <<"a binary">>,
-            #{a => 1, b => 2},
-            "a printable string",
-            fun() -> ok end
-        ]
-    ].
+faithful_leaves_test() ->
+    ?assertEqual({float, 1.5}, pe_lfe_read:convert(1.5)),
+    ?assertEqual({float, -0.25}, pe_lfe_read:convert(-0.25)),
+    ?assertEqual({binary, <<"a binary">>}, pe_lfe_read:convert(<<"a binary">>)),
+    ?assertEqual({str, <<"a printable string">>}, pe_lfe_read:convert("a printable string")).
 
-%% a character literal reads as an integer (no crash; modeled as {int, _}).
+faithful_map_test() ->
+    {map, KVs} = pe_lfe_read:convert(#{a => 1, b => 2}),
+    %% maps:to_list order is unspecified; compare the sorted pair set.
+    ?assertEqual(
+        [{{sym, <<"a">>}, {int, 1}}, {{sym, <<"b">>}, {int, 2}}],
+        lists:sort(KVs)
+    ).
+
+%% A2S1-5: no fallback — an unmodeled construct raises, it does not degrade.
+unmodeled_construct_errors_test() ->
+    ?assertError({unmodeled_construct, _}, pe_lfe_read:convert(fun() -> ok end)),
+    ?assertError({unmodeled_construct, _}, pe_lfe_read:convert(self())).
+
+%% a character literal reads as an integer (in LFE a char *is* an integer).
 char_is_int_test() ->
     ?assertEqual({int, $a}, conv("#\\a")).
 
-%% a string is carried as a single printed leaf, not exploded into char ints.
-string_is_single_leaf_test() ->
-    ?assertMatch({sym, _}, conv("\"hello world\"")).
+%% a string is a faithful {str} leaf carrying its bytes (not a printed-text hack).
+string_is_str_leaf_test() ->
+    ?assertEqual({str, <<"hello world">>}, conv("\"hello world\"")).
 
-%% convert is total: a deeply mixed term never throws.
-convert_is_total_test() ->
-    Mixed = [foo, 1, 2.0, <<"b">>, {a, "str"}, [nested, 'comma-at']],
-    ?assertMatch({call, _}, pe_lfe_read:convert(Mixed)).
+%% a deeply mixed real-LFE term converts without a fallback.
+faithful_mixed_test() ->
+    Mixed = [foo, 1, 2.0, <<"b">>, {a, "str"}, [nested, bar]],
+    ?assertMatch(
+        {call, [
+            {sym, <<"foo">>},
+            {int, 1},
+            {float, 2.0},
+            {binary, <<"b">>},
+            {tuple, [{sym, <<"a">>}, {str, <<"str">>}]},
+            {call, [{sym, <<"nested">>}, {sym, <<"bar">>}]}
+        ]},
+        pe_lfe_read:convert(Mixed)
+    ).
+
+%% A2S1-6: read_forms/1 captures the top-level form line from parse_file.
+read_forms_captures_line_test() ->
+    F = filename:join([code:lib_dir(lfe), "examples", "church.lfe"]),
+    {ok, [{Form1, Line1} | _]} = pe_lfe_read:read_forms(F),
+    ?assert(is_integer(Line1) andalso Line1 > 0),
+    ?assertMatch({call, [{sym, <<"defmodule">>} | _]}, Form1).
 
 %%%-------------------------------------------------------------------
 %%% A1S6-7: round-trip every top-level form of the reference sources

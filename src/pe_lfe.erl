@@ -34,9 +34,13 @@ call/special-form heads are inspectable without parsing text.
     {sym, binary()}
     | {str, binary()}
     | {int, integer()}
+    | {float, float()}
+    | {binary, binary()}
+    | {map, [{form(), form()}]}
     | {quote, form()}
     | {bquote, form()}
     | {unquote, form()}
+    | {splice, form()}
     | {list, [form()]}
     | {dotted_list, [form()], form()}
     | {tuple, [form()]}
@@ -159,17 +163,28 @@ base_rules_path() ->
 
 -spec lower(form(), ctx(), pe_doc:builder()) -> {pe_doc:id(), pe_doc:builder()}.
 lower({sym, Bin}, _Ctx, B) when is_binary(Bin) ->
-    pe_doc:text(Bin, B);
+    pe_doc:text(render_symbol(Bin), B);
 lower({str, S}, _Ctx, B) when is_binary(S) ->
-    pe_doc:text(<<$", S/binary, $">>, B);
+    pe_doc:text(<<$", (escape_string(S))/binary, $">>, B);
 lower({int, N}, _Ctx, B) when is_integer(N) ->
     pe_doc:text(integer_to_binary(N), B);
+lower({float, F}, _Ctx, B) when is_float(F) ->
+    %% Shortest round-trippable rendering (re-reads to an equal float).
+    pe_doc:text(float_to_binary(F, [short]), B);
+lower({binary, Bin}, _Ctx, B) when is_binary(Bin) ->
+    pe_doc:text(render_binary(Bin), B);
+lower({map, KVs}, Ctx, B) when is_list(KVs) ->
+    %% `#M(k v k v …)' — keys and values flattened into one aligned group.
+    Flat = lists:flatmap(fun({K, V}) -> [K, V] end, KVs),
+    aligned_brackets(<<"#M(">>, <<")">>, Flat, Ctx, B);
 lower({quote, F}, Ctx, B) ->
     prefix(<<"'">>, F, Ctx, B);
 lower({bquote, F}, Ctx, B) ->
     prefix(<<"`">>, F, Ctx, B);
 lower({unquote, F}, Ctx, B) ->
     prefix(<<",">>, F, Ctx, B);
+lower({splice, F}, Ctx, B) ->
+    prefix(<<",@">>, F, Ctx, B);
 lower({tuple, Fs}, Ctx, B) ->
     aligned_brackets(<<"#(">>, <<")">>, Fs, Ctx, B);
 lower({list, Fs}, Ctx, B) ->
@@ -270,7 +285,13 @@ clauses_block(HeadForms, ClauseForms, Ctx, B0) ->
     block(HeadForms, ClauseIds, Ctx, B1).
 
 %% Assemble "(" head <nest(nl body…)> ")" as a group: a head line, then a
-%% vertically-broken body indented by the context step.
+%% vertically-broken body indented by the context step. A head with no body
+%% (e.g. a `case' whose clause list is empty, as `try''s `(case …)' section
+%% reads) renders as just `(head)'.
+block(HeadForms, [], Ctx, B0) ->
+    {HeadIds, B1} = lower_list(HeadForms, Ctx, B0),
+    {HeadDoc, B2} = join_space(HeadIds, B1),
+    group_parens(HeadDoc, B2);
 block(HeadForms, BodyIds, #{indent := Indent} = Ctx, B0) ->
     {HeadIds, B1} = lower_list(HeadForms, Ctx, B0),
     {HeadDoc, B2} = join_space(HeadIds, B1),
@@ -315,7 +336,10 @@ lower_flet_binding({list, [Name, {list, _} = Args, FirstBody | RestBody]}, Ctx, 
 lower_flet_binding(Binding, Ctx, B) ->
     lower(Binding, Ctx, B).
 
-%% Like block/4 but the head is an already-built doc id.
+%% Like block/4 but the head is an already-built doc id. A bodyless clause
+%% (a `(pattern)' with no body forms) renders as just `(pattern)'.
+block_doc(HeadId, [], _Ctx, B0) ->
+    group_parens(HeadId, B0);
 block_doc(HeadId, BodyIds, #{indent := Indent}, B0) ->
     {BodyDoc, B1} = join_nl(BodyIds, B0),
     {Nl, B2} = pe_doc:nl(B1),
@@ -402,6 +426,99 @@ prefix(Prefix, Form, Ctx, B0) ->
     {T, B1} = pe_doc:text(Prefix, B0),
     {Id, B2} = lower(Form, Ctx, B1),
     pe_doc:concat(T, Id, B2).
+
+%% Render a symbol, `|…|'-quoting it when the bare name would not re-read to the
+%% same atom — a faithful replica of LFE's printer (`lfe_io_write:quote_symbol/2'
+%% with `lfe_scan:start_symbol_char/1' + `symbol_char/1'), kept here so the
+%% knowledge layer stays free of the test-only `lfe' dependency.
+-spec render_symbol(binary()) -> binary().
+render_symbol(Name) ->
+    case needs_quote(unicode:characters_to_list(Name)) of
+        true -> <<$|, (escape_symbol(Name))/binary, $|>>;
+        false -> Name
+    end.
+
+%% mirrors lfe_io_write:quote_symbol/2: quote `.', the empty atom, anything that
+%% reads as a number, or a name with a non-symbol char (or non-start char first).
+-spec needs_quote([char()]) -> boolean().
+needs_quote([]) ->
+    true;
+needs_quote([$.]) ->
+    true;
+needs_quote([C | Rest] = Cps) ->
+    looks_numeric(Cps) orelse
+        not (start_symbol_char(C) andalso lists:all(fun symbol_char/1, Rest)).
+
+looks_numeric(Cps) ->
+    is_numeric(fun erlang:list_to_float/1, Cps) orelse
+        is_numeric(fun erlang:list_to_integer/1, Cps).
+
+is_numeric(F, Cps) ->
+    try F(Cps) of
+        _ -> true
+    catch
+        _:_ -> false
+    end.
+
+%% lfe_scan:start_symbol_char/1
+start_symbol_char($#) -> false;
+start_symbol_char($`) -> false;
+start_symbol_char($') -> false;
+start_symbol_char($,) -> false;
+start_symbol_char($|) -> false;
+start_symbol_char(C) -> symbol_char(C).
+
+%% lfe_scan:symbol_char/1
+symbol_char($() -> false;
+symbol_char($)) -> false;
+symbol_char($[) -> false;
+symbol_char($]) -> false;
+symbol_char(${) -> false;
+symbol_char($}) -> false;
+symbol_char($") -> false;
+symbol_char($;) -> false;
+symbol_char(C) -> ((C > 16#20) andalso (C =< 16#7E)) orelse (C > 16#A0).
+
+%% Inside a `|…|' symbol, escape `|' and `\' (the structural characters).
+-spec escape_symbol(binary()) -> binary().
+escape_symbol(Name) ->
+    <<<<(escape_sym_char(C))/binary>> || <<C>> <= Name>>.
+
+escape_sym_char($|) -> <<$\\, $|>>;
+escape_sym_char($\\) -> <<$\\, $\\>>;
+escape_sym_char(C) -> <<C>>.
+
+%% Escape `"' and `\' inside a `"…"' / `#"…"' literal so the rendered text
+%% re-reads to the same bytes.
+-spec escape_string(binary()) -> binary().
+escape_string(S) ->
+    <<<<(escape_char(C))/binary>> || <<C>> <= S>>.
+
+escape_char($") -> <<$\\, $">>;
+escape_char($\\) -> <<$\\, $\\>>;
+escape_char(C) -> <<C>>.
+
+%% A binary literal renders as `#"…"' when every byte is printable ASCII (so the
+%% string form is unambiguous), otherwise as `#B(byte …)' decimal bytes. Both
+%% re-read to the identical binary.
+-spec render_binary(binary()) -> binary().
+render_binary(<<>>) ->
+    %% `#""' is a scan error in LFE, so the empty binary uses the byte form.
+    <<"#B()">>;
+render_binary(Bin) ->
+    case is_ascii_printable(Bin) of
+        true -> <<"#\"", (escape_string(Bin))/binary, "\"">>;
+        false -> <<"#B(", (byte_list(Bin))/binary, ")">>
+    end.
+
+-spec is_ascii_printable(binary()) -> boolean().
+is_ascii_printable(<<>>) -> true;
+is_ascii_printable(<<C, R/binary>>) when C >= 16#20, C =< 16#7E -> is_ascii_printable(R);
+is_ascii_printable(_) -> false.
+
+-spec byte_list(binary()) -> binary().
+byte_list(Bin) ->
+    iolist_to_binary(lists:join($\s, [integer_to_binary(B) || B <- binary_to_list(Bin)])).
 
 -spec lower_list([form()], ctx(), pe_doc:builder()) -> {[pe_doc:id()], pe_doc:builder()}.
 lower_list([], _Ctx, B) ->
