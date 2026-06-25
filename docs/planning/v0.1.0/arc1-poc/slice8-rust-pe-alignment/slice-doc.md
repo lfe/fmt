@@ -54,21 +54,41 @@ exactly that class. The two oracles are complementary:
 | in-BEAM brute force (slice1) | resolver ≠ our own measure spec | a bug shared by resolver + our measure |
 | mjl differential (this slice) | our measure/algebra ≠ an independent Πₑ | bugs mjl *also* has (unlikely to coincide) |
 
-## The two-implementation cost model (why a string is enough)
+## The two-implementation cost model (reported cost is canonical)
 
-mjl's cost is fully recomputable from the rendered string and the width,
-implementation-independently: the squared-overflow identity telescopes per line,
-so `badness = Σ_lines max(0, width(line) − W)²` and `height = count('\n')`. The
-oracle therefore does **not** need mjl to expose its cost — render the same doc
-on both sides at the same `(width, limit)`, recompute `{badness, height}` from
-each output string, and compare. For documents with a unique optimum, compare
-the strings directly; for ties (equal-cost distinct layouts), compare **cost
-only** — the optimum cost is canonical even when the witnessing layout is not.
+> **Corrected in iteration 1.** This section originally said the oracle does not
+> need mjl to expose its cost — "a string is enough", because the
+> squared-overflow identity is recomputable per line. That holds *only* for
+> cost-free documents: an injected `cost` node contributes to the engine's
+> internal cost while being **invisible** in the rendered string, so
+> string-recompute cannot see it (which is why 8a had to exclude `cost`). The
+> property the two engines are specified to share is the **reported optimal
+> cost**, and both expose it — mjl via `PrintResult::cost()` (`print.rs:240`),
+> us via `pe_measure:cost/1`. The model below is the corrected one.
+
+The canonical comparator is **reported-cost equality**: render the same doc on
+both sides at the same `(width, limit)`, take each engine's own
+`{badness, height}` for the chosen layout, and compare those. Πₑ guarantees both
+engines reach the same optimal *cost*, never the same *string*, so this is the
+right invariant — and it re-admits `cost` (an injected cost shows up identically
+in both reported costs) and closes the blind spot for any future invisible-cost
+feature.
+
+The **string-recomputed** cost — `badness = Σ_lines max(0, width(line) − W)²`,
+`height = count('\n')` — remains useful as a *secondary* check: on a cost-free,
+in-bounds document it equals the reported cost (a cheap cross-check, used by
+`pe_wire_tests` and the samples CSV), and byte identity is expected on
+unique-optimum documents. But neither gates the oracle; reported cost does.
 
 **Parity caveat:** "width(line)" must be the same metric on both sides
 (`display` columns, not bytes). The generator stays **ASCII-only** so byte
 length = display width and the recompute is unambiguous. Unicode-width parity is
 a non-goal for this slice.
+
+**Bound caveat (A1-R018):** reported-cost equality holds only where our paper
+`LineM` indentation charge is zero, i.e. indentation ≤ width. The corpus is
+bounded (nests 0..2, depth-capped, sweep ≥ 40) so this never trips; growing the
+corpus to indentation-overflow cases is gated on resolving the divergence.
 
 ## The gaps, grounded in code
 
@@ -207,15 +227,27 @@ both oracles below.
 
 **mjl differential oracle.** A pinned mjl `pretty-expressive` (`=1.0.0`) Rust
 binary (`test/oracle/`) renders the same documents as `pe`, driven by
-`pe_oracle_mjl` over a shared ASCII S-expression wire format. Over the width
-sweep {40, 80, 120}, **6000/6000 cases agree on recomputed `{badness, height}`
-cost**, with 5945/6000 byte-identical (the 55 differences are equal-cost ties —
-we deliberately do not replicate mjl's `Rc`-identity memo tie-break). Two
-corpus bounds are documented findings, not engine bugs: `cost` is excluded
-(injected cost is invisible to string-recompute, so a tie in internal cost can
-recompute to different costs), and widths start at 40 to avoid the newline-cost
-divergence below. A 24-row `bench/results/oracle_samples.csv` lets a verifier
-without a Rust toolchain re-derive the costs independently.
+`pe_oracle_mjl` over a shared ASCII S-expression wire format. The canonical
+comparator is **reported-cost equality** — each engine's own `{badness, height}`
+for the chosen layout (mjl `PrintResult::cost()`, us `pe_measure:cost/1`); byte
+identity is a secondary statistic (Πₑ shares the optimal *cost*, not the
+*string*). Over the width sweep {40, 80, 120}, **6000/6000 cases agree on
+reported cost** including cost-bearing documents, with 5956/6000 byte-identical
+(the 44 differences are equal-cost ties — we deliberately do not replicate mjl's
+`Rc`-identity memo tie-break). One corpus bound remains a documented finding,
+not an engine bug: widths start at 40 to keep the newline-cost divergence below
+unexercised. A 36-row `bench/results/oracle_samples.csv` (including cost-bearing
+rows whose injected cost is invisible in the string but equal in both reported
+costs) lets a verifier cross-check independently.
+
+> **Iteration 1 (reported-cost comparator).** 8a compared cost *recomputed from
+> the rendered string*, which cannot see an injected `cost` node, so 8a excluded
+> `cost` from the corpus (with compensating in-BEAM coverage). Iteration 1
+> switched the comparator to the reported optimal cost both engines already
+> expose, re-admitting `cost`: the 6000 cost-free cases are unchanged (there
+> reported cost == string-recompute) and cost-bearing documents now pass on
+> reported cost. The 8a string-recompute result stands as the prior evidence,
+> refined — not deleted.
 
 **Newline-cost divergence (kept ours).** mjl's `print.rs` charges a broken
 newline `(0,1)` with no indentation penalty; ours charges the paper's LineM

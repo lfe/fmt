@@ -6,7 +6,7 @@
 %%% defaults, resolve the optimal layout, and render it.
 %%%
 %%% Defaults: `cost => pe_cost_squared', `memo => pe_memo_map', `width => 80',
-%%% `limit => width'.
+%%% `limit => trunc(1.2 * width)' (matches mjl `cost.rs'; slice8 / A1-R017).
 %%% @end
 -module(pe).
 

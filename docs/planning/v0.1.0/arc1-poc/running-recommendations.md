@@ -330,13 +330,20 @@ because the current slice is moving on.
   exercised (`pe_oracle_mjl` generates shallow nests / short text and sweeps
   widths `{40, 80, 120}`, keeping every reachable indentation well under the
   smallest width). The in-BEAM oracle is self-consistent and needs no bound.
-- **Differential-oracle scope note:** `cost` (explicit cost injection) is also
-  excluded from the differential corpus — an injected cost never appears in the
-  rendered string, so recompute-from-string is not a faithful proxy for the
-  engine's internal cost on cost-bearing documents (a tie in internal cost can
-  recompute to different costs, and we deliberately do not replicate mjl's memo
-  tie-break). `cost` is covered instead by the in-BEAM brute-force oracle and
-  the `cost` algebra doctests in `pe_algebra_tests`.
-- **Re-entry trigger:** If a future requirement needs byte-for-byte parity with
-  mjl on deeply-indented documents, reconcile the newline cost models (either
-  drop our indentation charge or add it to the oracle's recompute and to mjl).
+- **Differential-oracle scope note (revised in iteration 1):** `cost` (explicit
+  cost injection) is **in** the differential corpus. The original 8a comparator
+  recomputed cost from the rendered string, which cannot see an injected cost
+  (two layouts tying on internal cost recompute to different string costs, and
+  we deliberately do not replicate mjl's memo tie-break) — so 8a excluded it.
+  Iteration 1 changed the canonical comparator to **reported optimal cost**
+  (`pe_measure:cost/1` vs mjl `PrintResult::cost()`), which both engines compute
+  identically through an injected `cost` node, so cost-bearing documents are now
+  exercised (the committed `oracle_samples.csv` carries such rows, e.g.
+  `(cost 3 1 (cost 0 1 (t "cwv")))` ⇒ string `"cwv"` but both report `(3, 2)`).
+  `cost` remains additionally covered by the in-BEAM brute-force oracle and the
+  `cost` algebra doctests in `pe_algebra_tests`.
+- **Re-entry trigger:** If a future requirement needs parity with mjl on
+  deeply-indented documents, reconcile the newline cost models so the two
+  *reported* costs agree past the page width — either drop our LineM indentation
+  charge, or add the equivalent charge to mjl — and then lift the corpus
+  indentation bound.

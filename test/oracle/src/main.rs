@@ -1,10 +1,13 @@
 //! Slice8 differential oracle binary.
 //!
-//! Reads a serialised document from stdin (the wire format shared with the
-//! Erlang driver, `pe_oracle_mjl`), builds the corresponding mjl
+//! Reads a serialised document from a file or stdin (the wire format shared
+//! with the Erlang driver, `pe_oracle_mjl`), builds the corresponding mjl
 //! `pretty-expressive` `Doc`, renders it with
-//! `DefaultCostFactory::new(width, Some(limit))`, and prints the chosen layout
-//! to stdout. On an unprintable document it prints the `<<FAIL>>` sentinel.
+//! `DefaultCostFactory::new(width, Some(limit))`, and prints a header line
+//! `OK <badness> <height>` — the chosen layout's *reported* optimal cost
+//! (`PrintResult::cost()`, the property the two engines are specified to share)
+//! — then the layout verbatim. On an unprintable document it prints the single
+//! token `FAIL`.
 //!
 //! Wire format (ASCII, prefix S-expressions):
 //!   D := (t "STR") | (nl) | (brk) | (hnl) | (fail)
@@ -46,9 +49,18 @@ fn main() {
     parser.skip_ws();
     assert!(parser.at_end(), "trailing input after document");
 
+    // Protocol (consumed by pe_oracle_mjl): on a printable document, a header
+    // line `OK <badness> <height>` carrying the chosen layout's *reported*
+    // optimal cost (`PrintResult::cost()`), then a newline, then the layout
+    // verbatim (which may itself span lines or be empty). On an unprintable
+    // document (a wholly-`fail` doc with no valid layout), the single token
+    // `FAIL` and nothing else — distinct from any parse panic.
     match doc.validate_with_cost(DefaultCostFactory::new(width, Some(limit))) {
-        Ok(result) => print!("{result}"),
-        Err(_) => print!("<<FAIL>>"),
+        Ok(result) => {
+            let cost = result.cost();
+            print!("OK {} {}\n{result}", cost.0, cost.1);
+        }
+        Err(_) => print!("FAIL"),
     }
 }
 

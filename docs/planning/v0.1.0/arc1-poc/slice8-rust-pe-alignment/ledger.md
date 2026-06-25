@@ -28,7 +28,7 @@
 | A1S8-13 | In-BEAM oracle property green with the full algebra: resolver cost `=:=` `pe_gen:oracle_optimal` | `rebar3 proper -m prop_pe_resolve` | serious | correctness | done | `prop_pe_resolve:prop_resolver_optimal` passes 1000 over fail/brk/hard_nl/reset/cost + smart-ctors (failed-oracle ⇒ resolver raises `no_valid_layout`) | |
 | A1S8-14 | Wire format defined; one parser each side; ASCII-only; round-trips a doc over the full algebra | code review; eunit round-trip | serious | spec | done | wire `D := (t STR)\|(nl)\|(brk)\|(hnl)\|(fail)\|(cat..)\|(nest N..)\|(align..)\|(reset..)\|(cost B H..)\|(alt..)`; serialiser `pe_oracle_mjl:serialize/1` (Erlang) + recursive-descent `Parser` (Rust); `pe_wire_tests` (17, every node + escaping + recompute); end-to-end round-trip proven by the 6000-case oracle | |
 | A1S8-15 | Rust oracle crate under `test/oracle/`, pinned mjl version, builds; CLI takes `(width, limit)`, renders via `DefaultCostFactory::new(width, Some(limit))` | `cargo build`; run on a sample | serious | spec | done | `test/oracle/` crate, `pretty-expressive = "=1.0.0"`, edition 2021; `pe-oracle WIDTH LIMIT [FILE]`; `cargo build --release` clean; smoke-tested (group flat/broken, fail, cost-taller, reset) | pin recorded |
-| A1S8-16 | Differential property: equal `{badness,height}` (recomputed from output strings) across width sweep over N random docs; identical output on unique-optimum docs | run `make oracle` / rebar3 alias | correctness | the alignment claim | done | `pe_oracle_mjl:run/1` over widths {40,80,120}: **6000/6000 cost-equal**, 5945/6000 byte-identical (55 equal-cost ties — mjl memo tie-break deliberately not replicated); `bench/results/oracle_samples.csv` (24 rows) for toolchain-free CDC re-derivation. `cost` excluded (injected cost invisible to string-recompute); widths≥40 avoid the newline-cost divergence (A1-R018) | cost canonical; ties accepted, byte-identical on unique optima |
+| A1S8-16 | Differential property: equal **reported** optimal cost (`pe_measure:cost/1` vs mjl `PrintResult::cost()`) across width sweep over N random docs; byte identity a unique-optimum secondary | run `escript bench/pe_oracle` | correctness | the alignment claim | done (refined by iter1, see A1S8-24..28) | **iter1:** `pe_oracle_mjl:run/1` over {40,80,120}: **6000/6000 reported-cost-equal incl. cost-bearing docs**, 5956/6000 byte-identical (44 equal-cost ties); `bench/results/oracle_samples.csv` (36 rows incl. invisible-cost rows). **8a (refined, not deleted):** the prior string-recompute comparator gave 6000/6000 cost-equal (5945/55) over the cost-free corpus — superseded as the gate but stands as prior evidence | criterion was "recompute from string"; iter1 corrected it to reported cost (string-recompute kept as secondary) |
 | A1S8-17 | Oracle reachable via `make oracle` (or rebar3 alias); kept out of default `rebar3 ct` unless operator opts in | run target; inspect CI config | serious | spec | done | `escript bench/pe_oracle [N]` (repo convention — mirrors `bench/pe_bench`); driver is not a `prop_*`/`_test`, so `rebar3 eunit`/`proper`/`ct` never invoke `run/1`; documented in escript + `CHANGELOG.md` | per slice-doc open-q 1 |
 | A1S8-18 | `pe_cost_squared` / cost factory unchanged; mjl memo internals NOT copied | diff review | serious | non-goal guard | done | `git diff --name-only` ⇒ no `pe_cost*`/`pe_memo*` change; no `memo_weight`/`MEMO_LIMIT`/`newline_count`/`Rc` ported | over-matching guard |
 | A1S8-19 | No LFE knowledge-layer / `formatter-map` change | `git show --name-only`; diff confined to engine + test | serious | scope guard | done | `git diff --name-only` ⇒ no `pe_lfe*`/`formatter` change; diff confined to `src/pe*` engine + `test/` + docs | engine-only slice |
@@ -37,12 +37,26 @@
 | A1S8-22 | Closing report: constructors landed; mjl-oracle result; `limit` latency movement; `full` disposition | report review | serious | methodology | done | `slice-doc.md` closing-report section (below) | |
 | A1S8-23 | OTP 22–29 backport; coverage gate + CAP audit remain explicitly deferred | ledger review | serious | deferred from arc | deferred | carried arc deferrals — unchanged by slice8; no backport/coverage/CAP work attempted here | |
 
+## Iteration 1 — reported-cost comparator (re-admit `cost`)
+
+| ID | Criterion | Verify | Significance | Origin | Status | Evidence |
+|----|-----------|--------|--------------|--------|--------|----------|
+| A1S8-24 | Rust oracle emits chosen-layout reported cost via `validate_with_cost`→`PrintResult::cost()`; unprintable → sentinel, not panic | `cargo build`; run on a cost-bearing + a `fail` sample | serious | iter1 | done | `test/oracle/src/main.rs`: `OK <b> <h>\n<layout>` header from `result.cost()` (`DefaultCost.0/.1`); `FAIL` token on `Err`. Smoke: `cost(0,2,"hello world")\|…` ⇒ `OK 0 1`; `(fail)` ⇒ `FAIL` |
+| A1S8-25 | Driver uses **reported-cost equality** as the canonical comparator (`pe_measure:cost/1` vs mjl `cost()`); byte-identity demoted to a unique-optimum secondary | code review; the prior `cost` tie case now passes on cost | correctness | iter1 | done | `pe_oracle_mjl:compare/5` gates on `OurCost =:= MjlCost` (reported), byte identity only picks the `identical`/`tie` tag; `our_render` returns `pe_measure:cost(Measure)`, `parse_mjl` reads the header cost. The 8a `cost(0,1,hnl)` tie now passes (`{0,2}={0,2}`) |
+| A1S8-26 | `cost` re-admitted to `rand_doc/1`; corpus widens over `cost` again; full corpus reported-cost-equal over {40,80,120} | run `bench/pe_oracle`; cost-bearing cases pass | correctness | iter1 | done | `rand_doc/1` cost case restored; `escript bench/pe_oracle 2000` ⇒ **6000/6000 reported-cost-equal**, 5956 byte-identical; samples incl. `(cost 3 1 (cost 0 1 (t "cwv")))` ⇒ string `"cwv"` but both reported `(3 2)` |
+| A1S8-27 | Indentation bounds preserved (A1-R018 divergence stays unexercised); reason recorded at the comparator | code review of bounds + comment | serious | iter1 / A1-R018 | done | `rand_doc` bounds unchanged (nests 0..2, depth-capped, sweep ≥ 40); module header + generator comment record that reported-cost equality holds only where `LineM` charges nothing | 
+| A1S8-28 | Spec-keeping: slice-doc cost-model section + A1S8-16 corrected to reported-cost-canonical; 8a string-recompute evidence kept, marked refined | doc diff | serious | iter1 / spec-keeping | done | slice-doc §"two-implementation cost model" rewritten (reported-cost canonical, string-recompute secondary) with an iter1 correction note; closing report + A1S8-16 refined, 8a result retained as prior evidence |
+
 ## Notes on verification independence (for CDC)
 
-- **A1S8-16 is the headline.** CDC should re-run `make oracle` (or, lacking a
-  Rust toolchain, re-derive `{badness,height}` from the committed sample outputs
-  with an independent recompute and confirm equality), not take CC's pass on
-  trust — mirroring the slice7 CDC pass that re-parsed `frontier.csv`.
+- **A1S8-16 is the headline (iter1: reported cost is the gate).** CDC should
+  re-run `escript bench/pe_oracle`. Lacking a Rust toolchain, confirm the
+  `our_cost`/`mjl_cost` columns of the committed `oracle_samples.csv` are equal
+  per row (that *is* the gate); for cost-free rows the cost is additionally
+  re-derivable from the rendered string via the squared-overflow identity, but
+  for cost-bearing rows the injected cost is invisible in the string — there the
+  reported-cost equality is the check, not a string recompute. Mirrors the
+  slice7 CDC pass that re-parsed `frontier.csv`.
 - **A1S8-9 (`full`).** If `deferred`, CDC confirms the re-entry condition is
   concrete and that rows 1–8, 10–22 stand without it (the slice is honestly
   scoped to "full algebra minus `full`").

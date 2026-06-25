@@ -3,20 +3,33 @@
 %%%
 %%% For each random document we serialise the frozen DAG into the wire format
 %%% understood by the `pe-oracle' Rust binary (see `test/oracle/'), render it
-%%% through both engines at `(W, limit = trunc(1.2 * W))', and recompute a
-%%% canonical `{Badness, Height}' cost from each rendered string. The engines
-%%% agree when those costs match (ties may pick different but equal-cost
-%%% layouts); a unique optimum additionally yields byte-identical output.
+%%% through both engines at `(W, limit = trunc(1.2 * W))', and compare the
+%%% **reported optimal cost** — the `{Badness, Height}' each engine itself
+%%% attaches to the chosen layout (ours via {@link pe_measure:cost/1}, mjl via
+%%% `PrintResult::cost()'). Πₑ guarantees both engines reach the same optimal
+%%% *cost*, never the same *string*, so reported-cost equality is the canonical
+%%% gate (iteration 1). Byte identity is a *secondary* statistic — expected only
+%%% on unique-optimum documents; a cost-equal byte difference is a legitimate
+%%% tie, not a failure.
+%%%
+%%% Reported cost (not cost recomputed from the string) is canonical because an
+%%% injected `cost' node contributes to the engine's internal cost while being
+%%% invisible in the rendered string; string-recompute therefore cannot see it
+%%% (that is why 8a had to exclude `cost'). Comparing the reported cost re-admits
+%%% `cost' and closes the blind spot for any future invisible-cost feature.
 %%%
 %%% This module is deliberately NOT a PropEr property and its functions are not
 %%% named `prop_*', so the default `rebar3 proper' run does not pick it up — it
-%%% needs the Rust binary and is driven explicitly via `make oracle'.
+%%% needs the Rust binary and is driven explicitly via `escript bench/pe_oracle'.
 %%%
-%%% Corpus bound (operator decision, slice8): our newline cost charges for
-%%% indentation overflow (paper LineM) whereas mjl's does not. The two diverge
-%%% only when a line's indentation exceeds the page width, so the generator
-%%% keeps documents small (shallow depth, small nests, short text) and the
-%%% sweep starts at width 40 — every reachable indentation stays well under it.
+%%% Corpus bound (operator decision, slice8; A1-R018): our newline cost charges
+%%% for indentation overflow (paper LineM) whereas mjl's does not. The two
+%%% diverge only when a line's indentation exceeds the page width — so reported
+%%% costs agree *only* within bounds where LineM charges nothing. The generator
+%%% keeps documents small (shallow depth, small nests, short text) and the sweep
+%%% starts at width 40, so every reachable indentation stays well under it and
+%%% the divergence is never exercised. Growing the corpus to indentation-overflow
+%%% cases is gated on resolving that divergence (an operator decision).
 -module(pe_oracle_mjl).
 
 -export([run/0, run/1, check/2, serialize/1, recompute/2, dump_samples/2]).
@@ -75,9 +88,12 @@ report(N, Total, {CostEq, ByteEq, Mismatches}) ->
 -doc """
 Write `N' diverse oracle cases to `Path' as a CSV (one row per doc x width):
 the wire, width, both engines' rendered strings (newlines shown as `\n', the
-literal sequence backslash-n), and the cost each side recomputes. Lets a
-verifier without a Rust toolchain re-derive `{badness, height}' from the
-committed output strings and confirm equality (mirrors slice7's `frontier.csv').
+literal sequence backslash-n), and each engine's **reported** optimal cost (the
+canonical gate). For a cost-free row the reported cost also equals the
+string-recomputed `{badness, height}', so a verifier without a Rust toolchain
+can re-derive it from the rendered string; a cost-bearing row carries an
+injected cost invisible to the string, so there the CSV documents the two
+reported costs whose equality is the check (mirrors slice7's `frontier.csv').
 """.
 -spec dump_samples(non_neg_integer(), file:name_all()) -> ok.
 dump_samples(N, Path) ->
@@ -91,14 +107,14 @@ sample_row(Sym, W) ->
     {Root, B} = pe_gen:build_sym(Sym, pe_doc:new()),
     Dag = pe_doc:freeze(B, Root),
     Wire = iolist_to_binary(serialize(Dag)),
-    {OurStr, OurCost} = render_field(our_render(Dag, W), W),
-    {MjlStr, MjlCost} = render_field(mjl_render(Wire, W), W),
+    {OurStr, OurCost} = render_field(our_render(Dag, W)),
+    {MjlStr, MjlCost} = render_field(mjl_render(Wire, W)),
     io_lib:format("~b,~s,~s,~s,~s,~s\n", [
         W, csv(Wire), csv(OurStr), csv(MjlStr), cost_str(OurCost), cost_str(MjlCost)
     ]).
 
-render_field(failed, _W) -> {<<"<<FAIL>>">>, failed};
-render_field({ok, Bin}, W) -> {shownl(Bin), recompute(Bin, W)}.
+render_field(failed) -> {<<"<<FAIL>>">>, failed};
+render_field({ok, Bin, Cost}) -> {shownl(Bin), Cost}.
 
 %% Render real newlines as the two-character sequence `\n' so each case is one
 %% CSV line.
@@ -114,9 +130,12 @@ cost_str({Bn, Hn}) -> io_lib:format("(~b ~b)", [Bn, Hn]).
 %%%-------------------------------------------------------------------
 
 -doc """
-Render one symbolic document through both engines at width `W' and compare.
-Returns `{ok, identical}' when the byte output matches, `{ok, tie}' when the
-recomputed costs match but the layouts differ, or `{mismatch, Detail}'.
+Render one symbolic document through both engines at width `W' and compare on
+**reported cost** (the canonical gate). Returns `{ok, identical}' when the
+reported costs match and the byte output is identical, `{ok, tie}' when the
+reported costs match but the layouts differ (a legitimate equal-cost tie), or
+`{mismatch, Detail}' when the reported costs differ or the engines disagree on
+printability.
 """.
 -spec check(pe_gen:sym(), pos_integer()) ->
     {ok, identical | tie} | {mismatch, map()}.
@@ -138,9 +157,9 @@ compare(Sym, W, Wire, Ours, Mjl) when Ours =:= failed; Mjl =:= failed ->
         ours => Ours,
         mjl => Mjl
     }};
-compare(Sym, W, Wire, {ok, OurBin}, {ok, MjlBin}) ->
-    OurCost = recompute(OurBin, W),
-    MjlCost = recompute(MjlBin, W),
+compare(Sym, W, Wire, {ok, OurBin, OurCost}, {ok, MjlBin, MjlCost}) ->
+    %% Canonical: reported-cost equality. Secondary (only distinguishes the
+    %% return tag, never gates): byte identity, expected on unique optima.
     case {OurCost =:= MjlCost, OurBin =:= MjlBin} of
         {true, true} ->
             {ok, identical};
@@ -159,13 +178,16 @@ compare(Sym, W, Wire, {ok, OurBin}, {ok, MjlBin}) ->
             }}
     end.
 
+%% Our reported optimal cost is the cost of the Measure the resolver returns.
 our_render(Dag, W) ->
     try pe:format_binary(Dag, #{width => W}) of
-        {Bin, _Measure, _Stats} -> {ok, Bin}
+        {Bin, Measure, _Stats} -> {ok, Bin, pe_measure:cost(Measure)}
     catch
         error:no_valid_layout -> failed
     end.
 
+%% mjl reports `OK <badness> <height>\n<layout>' on success, `FAIL' when the
+%% document has no valid layout.
 mjl_render(Wire, W) ->
     Limit = trunc(1.2 * W),
     File = tmp_path(),
@@ -175,9 +197,22 @@ mjl_render(Wire, W) ->
     ),
     Out = os:cmd(Cmd),
     _ = file:delete(File),
-    case Out of
-        "<<FAIL>>" -> failed;
-        _ -> {ok, list_to_binary(Out)}
+    parse_mjl(Out).
+
+parse_mjl("FAIL") ->
+    failed;
+parse_mjl(Out) ->
+    {HeaderLine, Layout} = split_first_line(Out),
+    ["OK", BadnessStr, HeightStr] = string:lexemes(HeaderLine, " "),
+    Cost = {list_to_integer(BadnessStr), list_to_integer(HeightStr)},
+    {ok, list_to_binary(Layout), Cost}.
+
+%% Split off the first line (the `OK b h' header); the remainder, after the one
+%% separating newline, is the layout verbatim (may be empty or multi-line).
+split_first_line(Str) ->
+    case string:split(Str, "\n") of
+        [Header, Rest] -> {Header, Rest};
+        [Header] -> {Header, ""}
     end.
 
 tmp_path() ->
@@ -194,10 +229,13 @@ tmp_path() ->
 %%%-------------------------------------------------------------------
 
 -doc """
-The canonical `{Badness, Height}' cost of a rendered string at page width `W',
-recomputed independently of either engine: badness is the sum over lines of
+The `{Badness, Height}' cost of a rendered string at page width `W', recomputed
+independently of either engine: badness is the sum over lines of
 `max(0, len - W)^2' and height is the newline count. ASCII-only corpus, so the
-display width of a line equals its byte length.
+display width of a line equals its byte length. This is a *secondary* check
+(used by `pe_wire_tests'): on a cost-free, in-bounds document it equals the
+engine's reported cost, but an injected `cost' node is invisible here — hence
+the reported cost, not this, is the oracle's canonical gate.
 """.
 -spec recompute(binary(), pos_integer()) -> {non_neg_integer(), non_neg_integer()}.
 recompute(Bin, W) ->
@@ -251,30 +289,30 @@ esc(<<C, R/binary>>) -> [C | esc(R)].
 %%%
 %%% Plain `rand'-driven (no PropEr) so the oracle runs from a bare `erl' shell.
 %%% Bounds keep every reachable indentation small: nests are 0..2 and depth is
-%%% capped, so even an `align' past the longest flat line stays under width 40.
+%%% capped, so even an `align' past the longest flat line stays under width 40 —
+%%% keeping the LineM newline-cost divergence (A1-R018) unexercised so the
+%%% reported costs are comparable.
 %%%
-%%% `cost' is deliberately ABSENT: it injects an explicit cost that never
-%%% appears in the rendered string, so recompute-from-string is not a faithful
-%%% proxy for the engine's internal cost on cost-injected documents (two
-%%% layouts that tie internally can recompute to different costs, and the
-%%% engines may break that tie differently — we deliberately do not replicate
-%%% mjl's memo tie-break). The `cost' constructor is covered instead by the
-%%% in-BEAM brute-force oracle (`prop_pe_resolve', which widens over `cost')
-%%% and the `cost' algebra doctests in `pe_algebra_tests'.
+%%% `cost' is included (iteration 1): the canonical comparator is the reported
+%%% cost, which both engines compute identically through an injected `cost'
+%%% node, so cost-bearing documents are now in scope. (8a had excluded `cost'
+%%% only because its earlier string-recompute comparator could not see an
+%%% injected cost.)
 %%%-------------------------------------------------------------------
 
 rand_doc(0) ->
     rand_leaf();
 rand_doc(Depth) ->
-    case rand:uniform(12) of
+    case rand:uniform(13) of
         N when N =< 2 -> rand_leaf();
         N when N =< 4 -> {concat, rand_doc(Depth - 1), rand_doc(Depth - 1)};
         5 -> {nest, rand:uniform(3) - 1, rand_doc(Depth - 1)};
         6 -> {align, rand_doc(Depth - 1)};
         7 -> {reset, rand_doc(Depth - 1)};
-        N when N =< 9 -> {choice, rand_doc(Depth - 1), rand_doc(Depth - 1)};
-        N when N =< 11 -> {group, rand_doc(Depth - 1)};
-        12 -> {vconcat, rand_doc(Depth - 1), rand_doc(Depth - 1)}
+        8 -> {cost, {rand:uniform(4) - 1, rand:uniform(3) - 1}, rand_doc(Depth - 1)};
+        N when N =< 10 -> {choice, rand_doc(Depth - 1), rand_doc(Depth - 1)};
+        N when N =< 12 -> {group, rand_doc(Depth - 1)};
+        13 -> {vconcat, rand_doc(Depth - 1), rand_doc(Depth - 1)}
     end.
 
 rand_leaf() ->
