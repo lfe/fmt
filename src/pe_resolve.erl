@@ -161,6 +161,9 @@ sample_frontier(Key, {set, Ms}, #rs{frontier_stats = true} = RS) ->
         frontier_max_at = MaxAt
     };
 sample_frontier(_Key, {tainted, _}, #rs{frontier_stats = true} = RS) ->
+    RS;
+sample_frontier(_Key, failed, #rs{frontier_stats = true} = RS) ->
+    %% A failed set has no frontier (no surviving measures); contribute nothing.
     RS.
 
 -spec compute_node(pe_doc:id(), non_neg_integer(), non_neg_integer(), #rs{}) ->
@@ -169,9 +172,16 @@ compute_node(Id, C, I, RS) ->
     case pe_doc:get(RS#rs.dag, Id) of
         {text, S, Width} -> resolve_text(S, Width, C, RS);
         nl -> resolve_nl(I, RS);
+        %% brk/hard_nl resolve identically to nl when not flattened — a real
+        %% newline of height 1. They differ only at build-time flatten.
+        brk -> resolve_nl(I, RS);
+        hard_nl -> resolve_nl(I, RS);
+        fail -> {pe_mset:failed(), RS};
         {concat, A, B} -> resolve_concat(Id, A, B, C, I, RS);
         {nest, N, D} -> resolve_nest(N, D, C, I, RS);
         {align, D} -> resolve_align(D, C, I, RS);
+        {reset, D} -> resolve_reset(D, C, RS);
+        {cost, Cv, D} -> resolve_cost(Cv, D, C, I, RS);
         {choice, A, B} -> resolve_choice(A, B, C, I, RS)
     end.
 
@@ -192,6 +202,9 @@ resolve_nl(I, #rs{cost = CM, page_width = PW} = RS) ->
 resolve_concat(Id, A, B, C, I, RS) ->
     {Sa, RS1} = resolve_node(A, C, I, RS),
     case Sa of
+        failed ->
+            %% mjl Concat: a failing left makes the whole concat fail.
+            {pe_mset:failed(), RS1};
         {set, Measures} ->
             concat_set(Measures, B, I, RS1);
         {tainted, _} ->
@@ -223,6 +236,10 @@ rsc(M, B, I, RS) ->
     {Sb, RS1} = resolve_node(B, pe_measure:last(M), I, RS),
     CM = RS1#rs.cost,
     case Sb of
+        failed ->
+            %% mjl analyze_right: a failing right contributes nothing (merge
+            %% treats `failed' as identity).
+            {pe_mset:failed(), RS1};
         {set, Measures} ->
             Composed = [pe_measure:compose(M, Mb, CM) || Mb <- Measures],
             {{set, pe_mset:dedup(Composed, CM)}, RS1};
@@ -242,6 +259,19 @@ resolve_nest(N, D, C, I, RS) ->
 resolve_align(D, C, I, RS) ->
     {Set, RS1} = resolve_node(D, C, C, RS),
     {pe_mset:lift(Set, fun(M) -> pe_measure:adjust_align(I, M) end), RS1}.
+
+%% ResetRS (mjl `Reset(d) => resolve(d, c, 0)'): resolve the child at
+%% indentation 0; `failed'/`tainted' pass through `lift'.
+resolve_reset(D, C, RS) ->
+    {Set, RS1} = resolve_node(D, C, 0, RS),
+    {pe_mset:lift(Set, fun(M) -> pe_measure:adjust_reset(M) end), RS1}.
+
+%% CostRS (mjl `Cost(co, d)'): add the injected cost to every measure. `failed'
+%% stays failed and `tainted' carries the cost lazily — both via `lift'.
+resolve_cost(Cv, D, C, I, RS) ->
+    {Set, RS1} = resolve_node(D, C, I, RS),
+    CM = RS1#rs.cost,
+    {pe_mset:lift(Set, fun(M) -> pe_measure:add_cost(Cv, M, CM) end), RS1}.
 
 %% UnionRS: resolve both branches and merge (left-biased on taint).
 resolve_choice(A, B, C, I, RS) ->
@@ -266,9 +296,14 @@ leftmost(Dag, Id) ->
     case pe_doc:get(Dag, Id) of
         {text, S, _W} -> {text, S};
         nl -> nl;
+        brk -> nl;
+        hard_nl -> nl;
         {concat, A, B} -> {concat, leftmost(Dag, A), leftmost(Dag, B)};
         {nest, N, D} -> {nest, N, leftmost(Dag, D)};
         {align, D} -> {align, leftmost(Dag, D)};
+        {reset, D} -> {reset, leftmost(Dag, D)};
+        %% cost is invisible in the layout; drop it in the best-effort fallback.
+        {cost, _Cv, D} -> leftmost(Dag, D);
         {choice, A, _B} -> leftmost(Dag, A)
     end.
 

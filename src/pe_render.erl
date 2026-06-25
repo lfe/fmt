@@ -44,7 +44,10 @@ render({nest, N, D}, Col, Indent) ->
     render(D, Col, Indent + N);
 render({align, D}, Col, _Indent) ->
     %% absolute: indentation is set to the current column.
-    render(D, Col, Col).
+    render(D, Col, Col);
+render({reset, D}, Col, _Indent) ->
+    %% reset: indentation is set to 0 (mjl `reset').
+    render(D, Col, 0).
 
 -spec spaces(non_neg_integer()) -> [32].
 spaces(0) -> [];

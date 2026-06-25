@@ -20,3 +20,8 @@ rebar3.crashdump
 *~
 workbench
 priv/images/drafts/
+
+# Rust differential-oracle crate (slice8): ignore build artifacts, keep source
+# + Cargo.lock (pinned mjl, for a reproducible oracle binary).
+test/oracle/target/
+.claude

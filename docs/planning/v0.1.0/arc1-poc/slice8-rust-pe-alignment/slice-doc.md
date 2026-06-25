@@ -190,3 +190,57 @@ mjl is a Rust program with Rust-specific machinery that is **not** part of the
    blocking.
 2. **mjl pinning.** Pin an exact mjl version/commit (it is pre-1.0 in spirit
    despite the `1.0.0` tag) and record it, so the oracle is reproducible.
+
+## Closing report (A1S8-22)
+
+**Constructors landed (8a).** The BEAM Πₑ engine now spans the mjl document
+algebra minus `full`: `fail` (with the `failed`/empty `pe_mset` that is the
+merge identity, mirroring `measure.rs` `(Failed,o)=>o`), the three newline
+variants `nl`/`brk`/`hard_nl` (flatten targets `" "`/`""`/`fail`), `reset`
+(indentation → 0, with `resolve_reset` + `adjust_reset`), and `cost` (explicit
+injection via `resolve_cost` + `add_cost`). mjl's smart-constructor
+normalisation is reproduced arm-for-arm (`concat_smart/5` in mjl `bitand`
+order; `choice`/`nest`/`align`/`reset` short-circuits; cost push-out). The
+build-time `flatten` distributes through all of it. Evidence: 12 mjl-doctest
+reproductions in `pe_algebra_tests`, the `pe_doc_tests` smart-ctor sweep, and
+both oracles below.
+
+**mjl differential oracle.** A pinned mjl `pretty-expressive` (`=1.0.0`) Rust
+binary (`test/oracle/`) renders the same documents as `pe`, driven by
+`pe_oracle_mjl` over a shared ASCII S-expression wire format. Over the width
+sweep {40, 80, 120}, **6000/6000 cases agree on recomputed `{badness, height}`
+cost**, with 5945/6000 byte-identical (the 55 differences are equal-cost ties —
+we deliberately do not replicate mjl's `Rc`-identity memo tie-break). Two
+corpus bounds are documented findings, not engine bugs: `cost` is excluded
+(injected cost is invisible to string-recompute, so a tie in internal cost can
+recompute to different costs), and widths start at 40 to avoid the newline-cost
+divergence below. A 24-row `bench/results/oracle_samples.csv` lets a verifier
+without a Rust toolchain re-derive the costs independently.
+
+**Newline-cost divergence (kept ours).** mjl's `print.rs` charges a broken
+newline `(0,1)` with no indentation penalty; ours charges the paper's LineM
+`text_cost(0,I)`. They differ only when an indentation level alone exceeds the
+page width. Per operator decision (2026-06-24) we keep the paper-faithful cost
+and bound the oracle corpus so the divergence is never exercised. Recorded as
+A1-R018.
+
+**`limit`-default latency movement.** Changing the computation-width default
+from `Width` to `trunc(1.2 × Width)` (matching mjl `cost.rs`) moves real-LFE
+corpus latency within noise — same-process A/B over 510 forms: W60 +6.6%,
+W80 −1.3%, W100 +0.6% (best-of-5). The wider limit explores more of the `W⁴`
+layout space but the real corpus shows no pathological tail; synthetic
+stress/guard rows pin `limit` explicitly and are unaffected. Reviewed, not
+silent: recorded in `CHANGELOG.md` and A1-R017.
+
+**`full` disposition: deferred (valve fired).** `full/1` (the locked-last-line
+line-comment constraint) is not implemented; the engine carries no `full` node.
+Rows A1S8-1..8 and 10..23 stand without it — the slice is honestly scoped to
+"full algebra minus `full`". Re-entry condition: **port mjl's `Full` plus its
+last-line measure-lock from `print.rs`** (idempotent ctor, `full(fail)=fail`,
+concat arm `(full,text)=>fail` ordered after `(_,text0)=>self`, and the
+measure-level "no non-empty text after `full` on a line" lock), then reproduce
+mjl's three `full` doctests and add it to both oracles' generators.
+
+**Green floor.** `rebar3 compile` (warnings-as-errors) / `xref` / `dialyzer`
+clean; `cargo clippy` clean; `rebar3 eunit` 246/0, `rebar3 proper` 8/8,
+`rebar3 ct` 2/2.

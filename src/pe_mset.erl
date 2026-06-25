@@ -21,6 +21,7 @@
 
 -export([
     singleton/1,
+    failed/0,
     tainted/1,
     tainted_lazy/1,
     is_tainted/1,
@@ -35,8 +36,12 @@
 
 -type measure() :: pe_measure:measure().
 
--doc "A Pareto frontier of measures, or a tainted (delayed) fallback measure.".
--type mset() :: {set, [measure(), ...]} | {tainted, fun(() -> measure())}.
+-doc """
+A Pareto frontier of measures, a tainted (delayed) fallback measure, or
+`failed' — the empty set, a document with no valid layout. `failed' mirrors
+mjl's `MeasureSet::Failed' (measure.rs) and is the identity for {@link merge/3}.
+""".
+-type mset() :: {set, [measure(), ...]} | {tainted, fun(() -> measure())} | failed.
 
 %%%-------------------------------------------------------------------
 %%% Constructors
@@ -45,6 +50,10 @@
 -doc "A singleton frontier from one measure.".
 -spec singleton(measure()) -> mset().
 singleton(M) -> {set, [M]}.
+
+-doc "The empty/failed set — a document with no valid layout.".
+-spec failed() -> mset().
+failed() -> failed.
 
 -doc "A tainted set wrapping an already-computed measure.".
 -spec tainted(measure()) -> mset().
@@ -57,7 +66,8 @@ tainted_lazy(Thunk) when is_function(Thunk, 0) -> {tainted, Thunk}.
 -doc "Whether a measure set is tainted.".
 -spec is_tainted(mset()) -> boolean().
 is_tainted({tainted, _}) -> true;
-is_tainted({set, _}) -> false.
+is_tainted({set, _}) -> false;
+is_tainted(failed) -> false.
 
 %%%-------------------------------------------------------------------
 %%% Operations
@@ -69,6 +79,13 @@ two `Tainted's, the left one. Merging two frontiers is a merge-sort-style pass
 that prunes dominated measures as it goes.
 """.
 -spec merge(mset(), mset(), module()) -> mset().
+merge(failed, Other, _CostMod) ->
+    %% failed ⊎ X = X (mjl measure.rs: (Failed, other) => other). Must precede
+    %% the tainted clause so `failed ⊎ tainted = tainted'.
+    Other;
+merge(This, failed, _CostMod) ->
+    %% X ⊎ failed = X (mjl: (this, Failed) => this).
+    This;
 merge(S, {tainted, _}, _CostMod) ->
     %% S ⊎ Tainted = S (covers Set⊎Tainted and the left-biased Tainted⊎Tainted).
     S;
@@ -80,18 +97,25 @@ merge({set, A}, {set, B}, CostMod) ->
 
 -doc "Taint a measure set: a `Tainted' is unchanged; a `Set' collapses to its least-cost head.".
 -spec taint(mset()) -> mset().
+taint(failed) -> failed;
 taint({tainted, _} = S) -> S;
 taint({set, [M0 | _]}) -> tainted(M0).
 
 -doc "Apply `Fun' to every measure in the set (lazily through a `Tainted's thunk).".
 -spec lift(mset(), fun((measure()) -> measure())) -> mset().
+lift(failed, _Fun) -> failed;
 lift({set, Ms}, Fun) -> {set, [Fun(M) || M <- Ms]};
 lift({tainted, Thunk}, Fun) -> {tainted, fun() -> Fun(Thunk()) end}.
 
--doc "The least-cost measure: the head of a frontier, or the forced tainted measure.".
+-doc """
+The least-cost measure: the head of a frontier, or the forced tainted measure.
+`failed' has no layout and raises — a top-level `failed' means the document is
+unprintable (mjl returns its `Error' here).
+""".
 -spec optimal(mset()) -> measure().
 optimal({set, [M0 | _]}) -> M0;
-optimal({tainted, Thunk}) -> Thunk().
+optimal({tainted, Thunk}) -> Thunk();
+optimal(failed) -> error(no_valid_layout).
 
 -doc """
 Prune a list of measures that is ordered by last strictly descending and cost

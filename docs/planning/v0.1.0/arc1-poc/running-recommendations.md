@@ -287,3 +287,56 @@ because the current slice is moving on.
   produce metrics.
 - **Re-entry trigger:** Before expanding the stress corpus sizes, adding
   generator-driven stress cases, or running the benchmark unattended in CI.
+
+## Slice 8: Alignment with Rust `pretty-expressive` (mjl)
+
+### A1-R017: `limit` default changed to `trunc(1.2 * Width)` (reviewed, not silent)
+
+- **Status:** addressed (landed in slice8), keep watching
+- **Source:** Slice8 alignment with mjl `cost.rs`
+  (`limit() = computation_width.unwrap_or((1.2 * page_width) as usize)`);
+  operator decision 2026-06-24.
+- **Change:** `pe:with_defaults/1` previously defaulted the computation-width
+  `limit` to the page `Width`; it now defaults to `trunc(1.2 * Width)`, matching
+  mjl. Explicit `limit` callers are unaffected. This is an **output-affecting**
+  default change — a wider limit lets the resolver keep more candidate layouts
+  before tainting, so some documents now resolve to a different (lower-cost)
+  layout than before. Recorded here and in `CHANGELOG.md` per `CLAUDE.md`'s
+  reviewed-change rule (a silent landing here would be the exact failure mode
+  the guideline warns against).
+- **Latency movement (real LFE corpus, slice6 path):** same-process A/B over
+  510 forms across 13 reference `.lfe` files, Σ per-form `format_binary`,
+  best-of-5: width 60 ≈ +6.6%, width 80 ≈ −1.3%, width 100 ≈ +0.6%. The larger
+  limit explores more layouts (the `O(n·W⁴)` factor), but the real corpus shows
+  no pathological tail — movement stays within run-to-run noise (±~7%). The
+  worst case remains the synthetic stress/guard rows, which pin `limit`
+  explicitly and are unaffected.
+- **Re-entry trigger:** If a future corpus expansion or larger default width
+  surfaces a guard_SUITE / stress-row tail blowup, revisit whether the default
+  should clamp `limit` for very large `W`.
+
+### A1-R018: Newline cost diverges from mjl on indentation overflow (kept ours)
+
+- **Status:** open (documented divergence; operator chose to keep ours)
+- **Source:** Slice8 differential oracle against mjl `print.rs`.
+- **Concern:** mjl's `print.rs` resolves a broken `Newline` to a measure with
+  cost `(0, 1)` — one newline, **no charge for the indentation that follows**.
+  Our resolver charges `text_cost(0, I)` for the indentation per the paper's
+  LineM rule, so when an indentation level `I` exceeds the page width `W` our
+  newline costs more than mjl's. The two engines therefore diverge only when a
+  line's indentation alone overruns `W`.
+- **Decision (operator, 2026-06-24):** keep ours (the paper-faithful LineM
+  charge); bound the differential-oracle corpus so the divergence is never
+  exercised (`pe_oracle_mjl` generates shallow nests / short text and sweeps
+  widths `{40, 80, 120}`, keeping every reachable indentation well under the
+  smallest width). The in-BEAM oracle is self-consistent and needs no bound.
+- **Differential-oracle scope note:** `cost` (explicit cost injection) is also
+  excluded from the differential corpus — an injected cost never appears in the
+  rendered string, so recompute-from-string is not a faithful proxy for the
+  engine's internal cost on cost-bearing documents (a tie in internal cost can
+  recompute to different costs, and we deliberately do not replicate mjl's memo
+  tie-break). `cost` is covered instead by the in-BEAM brute-force oracle and
+  the `cost` algebra doctests in `pe_algebra_tests`.
+- **Re-entry trigger:** If a future requirement needs byte-for-byte parity with
+  mjl on deeply-indented documents, reconcile the newline cost models (either
+  drop our indentation charge or add it to the oracle's recompute and to mjl).

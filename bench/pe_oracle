@@ -1,0 +1,34 @@
+#!/usr/bin/env escript
+%%! -pa _build/default/lib/fmt/ebin -pa _build/test/lib/fmt/ebin -pa _build/test/lib/fmt/test
+%%% -*- erlang -*-
+%%%
+%%% pe_oracle — the slice8 differential-oracle harness.
+%%%
+%%% Renders random documents through BOTH our Πₑ engine and the mjl
+%%% `pretty-expressive' reference (the `pe-oracle' Rust binary) over a width
+%%% sweep, and checks that the two agree on the recomputed `{Badness, Height}'
+%%% cost of every layout. It is intentionally NOT part of `rebar3 eunit' /
+%%% `rebar3 ct' / `rebar3 proper' (it needs the Rust toolchain and a built
+%%% binary); run it explicitly:
+%%%
+%%%     (cd test/oracle && cargo build --release)
+%%%     rebar3 as test compile
+%%%     escript bench/pe_oracle           %% 300 docs/width
+%%%     escript bench/pe_oracle 1000       %% N docs/width
+%%%
+%%% Exits non-zero if any case's cost diverges, so it can gate CI once the Rust
+%%% toolchain is available there.
+
+-mode(compile).
+
+main(Args) ->
+    N = case Args of
+        [] -> 300;
+        [Str] -> list_to_integer(Str)
+    end,
+    try pe_oracle_mjl:run(N) of
+        ok -> halt(0)
+    catch
+        error:oracle_mismatch -> halt(1);
+        error:no_oracle_binary -> halt(2)
+    end.

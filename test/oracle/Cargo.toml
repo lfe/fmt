@@ -1,0 +1,15 @@
+# Slice8 differential oracle: a tiny standalone binary that renders a document
+# through the mjl `pretty-expressive` reference and prints the layout, so the
+# Erlang driver can compare it against our engine. Pinned to mjl 1.0.0 (the
+# reference of record read in src/{lib,cost,measure,print}.rs).
+[package]
+name = "pe-oracle"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+pretty-expressive = "=1.0.0"
+
+[profile.release]
+opt-level = 1

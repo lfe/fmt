@@ -35,7 +35,7 @@ format_binary(Dag, Opts) ->
     {Iolist, Measure, Stats} = format(Dag, Opts),
     {iolist_to_binary(Iolist), Measure, Stats}.
 
-%% Fill defaults; limit defaults to the page width.
+%% Fill defaults; limit defaults to mjl's `trunc(1.2 * page_width)'.
 -spec with_defaults(map()) -> pe_resolve:opts().
 with_defaults(Opts) ->
     Width = maps:get(width, Opts, 80),
@@ -43,5 +43,8 @@ with_defaults(Opts) ->
         cost => maps:get(cost, Opts, pe_cost_squared),
         memo => maps:get(memo, Opts, pe_memo_map),
         width => Width,
-        limit => maps:get(limit, Opts, Width)
+        %% Computation-width limit defaults to mjl's `trunc(1.2 * page_width)'
+        %% (cost.rs `limit()`), not the page width. A reviewed default change
+        %% (slice8 / operator 2026-06-24), recorded in running-recommendations.
+        limit => maps:get(limit, Opts, trunc(1.2 * Width))
     }.

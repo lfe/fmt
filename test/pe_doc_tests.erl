@@ -40,11 +40,13 @@ hashcons_test() ->
     Dag = pe_doc:freeze(B5, C1),
     ?assertEqual(3, pe_doc:size(Dag)).
 
-%% A1S1-3: children are ordered and may repeat.
+%% A1S1-3: children are ordered and may repeat. Uses newline nodes, not text,
+%% so the mjl `(Text, Text)` smart-constructor merge (slice8) does not collapse
+%% the concat into a single text.
 children_order_repeat_test() ->
     B0 = pe_doc:new(),
-    {X, B1} = pe_doc:text(<<"x">>, B0),
-    {Y, B2} = pe_doc:text(<<"y">>, B1),
+    {X, B1} = pe_doc:nl(B0),
+    {Y, B2} = pe_doc:brk(B1),
     %% repeated child: concat(X, X) -> [X, X] (one node, two refs).
     {Dup, B3} = pe_doc:concat(X, X, B2),
     %% ordered child: concat(X, Y) -> [X, Y], never [Y, X].
@@ -86,14 +88,31 @@ flatten_distributes_through_choice_test() ->
     ?assertEqual({text, <<" ">>, 1}, pe_doc:get(Dag, LeftId)),
     ?assertEqual(X, RightId).
 
+%% flatten distributes through nest; the inner body keeps a `choice' so the
+%% `nest' survives the mjl smart-constructor (slice8) `nest(Text) => Text'
+%% short-circuit. (A bare `nest 2 nl' would flatten to just `text " "', since
+%% nesting a newline-free document is identity.)
 flatten_distributes_through_nest_test() ->
     B0 = pe_doc:new(),
     {Nl, B1} = pe_doc:nl(B0),
-    {N, B2} = pe_doc:nest(2, Nl, B1),
-    {F, B3} = pe_doc:flatten(N, B2),
-    Dag = pe_doc:freeze(B3, F),
+    {X, B2} = pe_doc:text(<<"x">>, B1),
+    {Ch, B3} = pe_doc:choice(Nl, X, B2),
+    {N, B4} = pe_doc:nest(2, Ch, B3),
+    {F, B5} = pe_doc:flatten(N, B4),
+    Dag = pe_doc:freeze(B5, F),
     {nest, 2, Inner} = pe_doc:get(Dag, F),
-    ?assertEqual({text, <<" ">>, 1}, pe_doc:get(Dag, Inner)).
+    %% flatten(choice(nl, x)) = choice(space, x).
+    {choice, SpaceId, XId} = pe_doc:get(Dag, Inner),
+    ?assertEqual({text, <<" ">>, 1}, pe_doc:get(Dag, SpaceId)),
+    ?assertEqual(X, XId).
+
+%% mjl smart-constructor: nesting/aligning a newline-free document is identity.
+nest_align_text_short_circuit_test() ->
+    B0 = pe_doc:new(),
+    {X, B1} = pe_doc:text(<<"x">>, B0),
+    ?assertEqual(X, element(1, pe_doc:nest(2, X, B1))),
+    ?assertEqual(X, element(1, pe_doc:align(X, B1))),
+    ?assertEqual(X, element(1, pe_doc:reset(X, B1))).
 
 %% group(D) = choice(flatten(D), D); vconcat(A, B) = concat(A, concat(nl, B)).
 group_test() ->

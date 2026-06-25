@@ -26,6 +26,8 @@
     compose/3,
     adjust_nest/2,
     adjust_align/2,
+    adjust_reset/1,
+    add_cost/3,
     dominates/3,
     measure_term/5,
     last/1,
@@ -35,13 +37,20 @@
 
 -export_type([measure/0, cdoc/0]).
 
--doc "A choiceless document term carried inside a measure.".
+-doc """
+A choiceless document term carried inside a measure. `{reset, _}' renders its
+child at indentation 0; a `cost' node leaves no trace in the layout, so it is
+not represented here (the resolver folds the injected cost into the measure's
+cost and keeps the inner document).
+""".
 -type cdoc() ::
     {text, binary()}
     | nl
     | {concat, cdoc(), cdoc()}
     | {nest, non_neg_integer(), cdoc()}
-    | {align, cdoc()}.
+    | {align, cdoc()}
+    | {reset, cdoc()}
+    | {cost, pe_doc:cost_value(), cdoc()}.
 
 -doc "`{Last, Cost, CDoc}': last-line length, cost, and the choiceless document.".
 -type measure() :: {non_neg_integer(), pe_cost:cost(), cdoc()}.
@@ -109,6 +118,16 @@ adjust_nest(N, {Last, Cost, Doc}) ->
 adjust_align(_Indent, {Last, Cost, Doc}) ->
     {Last, Cost, {align, Doc}}.
 
+-doc "Wrap a measure's document in `reset' (last and cost unchanged).".
+-spec adjust_reset(measure()) -> measure().
+adjust_reset({Last, Cost, Doc}) ->
+    {Last, Cost, {reset, Doc}}.
+
+-doc "Add an injected `cost' value to a measure (mjl `Cost'); last and document unchanged.".
+-spec add_cost(pe_doc:cost_value(), measure(), module()) -> measure().
+add_cost(Cv, {Last, Cost, Doc}, CostMod) ->
+    {Last, CostMod:combine(Cv, Cost), Doc}.
+
 -doc "Domination `⪯': `Ma' dominates `Mb' when both its last and cost are no worse.".
 -spec dominates(measure(), measure(), module()) -> boolean().
 dominates({La, Ca, _}, {Lb, Cb, _}, CostMod) ->
@@ -132,4 +151,8 @@ measure_term({concat, Da, Db}, C, I, CostMod, W) ->
 measure_term({nest, N, D}, C, I, CostMod, W) ->
     adjust_nest(N, measure_term(D, C, I + N, CostMod, W));
 measure_term({align, D}, C, I, CostMod, W) ->
-    adjust_align(I, measure_term(D, C, C, CostMod, W)).
+    adjust_align(I, measure_term(D, C, C, CostMod, W));
+measure_term({reset, D}, C, _I, CostMod, W) ->
+    adjust_reset(measure_term(D, C, 0, CostMod, W));
+measure_term({cost, Cv, D}, C, I, CostMod, W) ->
+    add_cost(Cv, measure_term(D, C, I, CostMod, W), CostMod).

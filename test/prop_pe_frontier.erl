@@ -26,15 +26,21 @@ prop_frontier_invariant() ->
     ?FORALL(
         {Dag, Width},
         {dag(), range(1, 20)},
-        begin
-            Base = #{cost => ?SQ, memo => pe_memo_map, width => Width, limit => Width},
-            {MeasureOff, StatsOff} = pe_resolve:resolve(Dag, Base),
-            {MeasureOn, StatsOn} = pe_resolve:resolve(Dag, Base#{frontier_stats => true}),
-            MeasureOff =:= MeasureOn andalso
-                StatsOff =:= maps:remove(frontier, StatsOn) andalso
-                not maps:is_key(frontier, StatsOff) andalso
-                maps:is_key(frontier, StatsOn)
-        end
+        %% Skip documents with no valid layout (a failed top-level set) — the
+        %% resolver raises for both flag states; frontier invariance is about
+        %% the printable case.
+        ?IMPLIES(
+            pe_gen:widen(Dag, pe_doc:root(Dag)) =/= [],
+            begin
+                Base = #{cost => ?SQ, memo => pe_memo_map, width => Width, limit => Width},
+                {MeasureOff, StatsOff} = pe_resolve:resolve(Dag, Base),
+                {MeasureOn, StatsOn} = pe_resolve:resolve(Dag, Base#{frontier_stats => true}),
+                MeasureOff =:= MeasureOn andalso
+                    StatsOff =:= maps:remove(frontier, StatsOn) andalso
+                    not maps:is_key(frontier, StatsOff) andalso
+                    maps:is_key(frontier, StatsOn)
+            end
+        )
     ).
 
 %% A1S7-8: with a computation limit large enough to taint nothing, the resolver's
@@ -51,8 +57,16 @@ prop_frontier_oracle() ->
                 limit => 1000000,
                 frontier_stats => true
             },
-            {Resolved, _Stats} = pe_resolve:resolve(Dag, Opts),
-            Oracle = pe_gen:oracle_optimal(Dag, ?SQ, Width),
-            pe_measure:cost(Resolved) =:= pe_measure:cost(Oracle)
+            case pe_gen:oracle_optimal(Dag, ?SQ, Width) of
+                failed ->
+                    try pe_resolve:resolve(Dag, Opts) of
+                        _ -> false
+                    catch
+                        error:no_valid_layout -> true
+                    end;
+                Oracle ->
+                    {Resolved, _Stats} = pe_resolve:resolve(Dag, Opts),
+                    pe_measure:cost(Resolved) =:= pe_measure:cost(Oracle)
+            end
         end
     ).
