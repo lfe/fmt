@@ -1,0 +1,192 @@
+# Slice 8 — alignment with the Rust `pretty-expressive` (mjl)
+
+> Design + scope. Companion: `cc-prompt.md`, `ledger.md`. Arc: arc1-poc.
+> Slug proposed; rename freely. CDC-authored (Cowork chat seat) for CC.
+
+## Why this slice exists
+
+`mjl/pretty-expressive` (`crates.io`, v1.0.0, `git.midna.dev/mjm/mjl`) is a Rust
+port of the **same** Πₑ printer we are porting to the BEAM — itself a port of
+the official Racket and OCaml libraries. We read its source side-by-side with
+ours and the result is reassuring at the cost layer and instructive at the
+algebra layer:
+
+- **The cost factory is byte-identical.** mjl's `DefaultCostFactory` and our
+  `pe_cost_squared` compute the same squared-overflow badness
+  (`b·(2a+b)`, `a = max(W,c)−W`, `b = stop−max(W,c)`), the same `{0,1}` newline
+  height, componentwise `combine`, and lexicographic order. Nothing to
+  reconcile here. (Verified: `mjl .../src/cost.rs` vs `src/pe_cost_squared.erl`.)
+- **The document algebra diverges — we implement a strict subset.** mjl's
+  `DocKind` is `Newline(Option<String>) | Fail | Text | Concat | Alt | Align |
+  Reset | Nest | Full | Cost`. Ours (`pe_doc.erl`) is `text | nl | concat |
+  nest | align | choice` only. We are missing **`fail`, `brk`/`hard_nl`
+  (newline variants), `reset`, `full`, and `cost`**, plus mjl's
+  smart-constructor normalisation.
+- **One default differs.** Our `limit` (the computation width `W`) defaults to
+  the page width (1.0×); mjl defaults to `1.2 × page_width`
+  (`(1.2 * page_width as f64) as usize`). raco/`pretty-expressive` ships
+  `current-width 102` / `current-limit 120` (≈1.18×). This changes which
+  layouts are explored vs. tainted, and therefore can change the chosen
+  optimum.
+
+**Decision of record (operator, 2026-06-24):** the alignment target is **mjl
+specifically** — match its concrete choices, including its computation-width
+default and its node-normalisation smart constructors — not merely the paper.
+Scope is **full**: build the differential oracle, add the missing constructors,
+**and** change the `limit` default to mjl's.
+
+This is the slice that makes "ours is a faithful Πₑ" a *checked* claim rather
+than a read-the-papers belief, and closes the algebra gaps that the LFE
+knowledge layer (and comment formatting in particular) will need.
+
+## What "alignment" buys us beyond the existing oracle
+
+slice1 already gives us the strongest correctness gate at the cost level: the
+resolver optimum `=:=` an **in-BEAM brute-force oracle** (`pe_gen:oracle_optimal`,
+widen→measure→min). That oracle is decisive but has one blind spot — it shares
+our own `pe_measure`/`pe_cost` code, so a *systematic* bug living in both the
+resolver and the brute-force measure would pass. A **second, independent
+implementation** (mjl, different language, different author, same paper) catches
+exactly that class. The two oracles are complementary:
+
+| Oracle | Catches | Blind to |
+|--------|---------|----------|
+| in-BEAM brute force (slice1) | resolver ≠ our own measure spec | a bug shared by resolver + our measure |
+| mjl differential (this slice) | our measure/algebra ≠ an independent Πₑ | bugs mjl *also* has (unlikely to coincide) |
+
+## The two-implementation cost model (why a string is enough)
+
+mjl's cost is fully recomputable from the rendered string and the width,
+implementation-independently: the squared-overflow identity telescopes per line,
+so `badness = Σ_lines max(0, width(line) − W)²` and `height = count('\n')`. The
+oracle therefore does **not** need mjl to expose its cost — render the same doc
+on both sides at the same `(width, limit)`, recompute `{badness, height}` from
+each output string, and compare. For documents with a unique optimum, compare
+the strings directly; for ties (equal-cost distinct layouts), compare **cost
+only** — the optimum cost is canonical even when the witnessing layout is not.
+
+**Parity caveat:** "width(line)" must be the same metric on both sides
+(`display` columns, not bytes). The generator stays **ASCII-only** so byte
+length = display width and the recompute is unambiguous. Unicode-width parity is
+a non-goal for this slice.
+
+## The gaps, grounded in code
+
+Each item names the mjl source, our seam, and observable vs. transparent
+status. "Transparent" = changes DAG identity but not rendered output or cost;
+"semantic" = changes observable behaviour.
+
+1. **`fail` (semantic).** mjl: `DocKind::Fail`; `flatten(fail)=fail`; concat
+   `(Fail,_)|(_,Fail)=>fail`; choice `(Fail,_)=>rhs`, `(_,Fail)=>self`; measure
+   `MeasureSet::Failed`, merge identity (`(Failed,o)=>o`). **Ours has no empty
+   set:** `pe_mset:mset()` is `{set,[M,...]}` (non-empty) `| {tainted,_}`. So
+   `fail` requires a new **`failed`** mset variant (or an explicit empty set),
+   `merge` identity on it, a `resolve_node` `fail` clause returning it, and
+   `pe_doc:fail/1` + the flatten/concat/choice short-circuits. This is the
+   structural keystone — `hard_nl` depends on it.
+
+2. **`brk` / `hard_nl` (semantic).** mjl: `Newline(Option<String>)` — `nl`
+   flattens to `" "`, `brk` to `""`, `hard_nl` (`None`) **fails** to flatten.
+   Ours: a single `nl` whose `flatten_payload(nl) = text(" ")`. Parameterise the
+   newline node to carry its flatten target (`{nl, FlatTarget}` where
+   `FlatTarget :: {text, Bin} | fail`), add `brk/1` and `hard_nl/1`, and make
+   `flatten(hard_nl) = fail`.
+
+3. **`reset` (semantic, low).** mjl: `Reset(Doc)` — indentation set to 0 while
+   rendering `d`. Near-twin of our existing `align` (`resolve_align` sets
+   `I = C`); `reset` sets `I = 0`. Add `pe_doc:reset/1`, a `resolve_reset`
+   clause, and `pe_measure:adjust_reset`. Mirror mjl's smart-ctor
+   short-circuits (below).
+
+4. **`full` (semantic, HIGHEST RISK).** mjl: `Full(Doc)` — `d` must not be
+   followed by more text on the same line, else the layout fails (the line-
+   comment constraint). The construction-time peephole `(Full(_), Text(_,_)) =>
+   fail` only covers *immediate* adjacency; the general constraint (text after
+   `full` through concats/choices/newlines) is enforced in the **Printer**
+   (`mjl .../src/print.rs`), and the `Measure` struct shown in `measure.rs`
+   carries only `{last, cost, layout}` with no visible "locked" flag — so the
+   representation of the constraint must be read out of `print.rs`, not guessed.
+   This is the one item that may require measure-level surgery beyond a new node
+   clause. **Designated deferral valve** (see Risk).
+
+5. **`cost` (semantic, low–moderate).** mjl: `Cost(C, Doc)` — adds `c` to the
+   doc's cost; `cost(c, fail)=fail`; pushed outward through nest/align/reset/
+   concat smart-ctors. Add `pe_doc:cost/2` (carrying a `pe_cost`-module value),
+   a `resolve_cost` clause that `combine`s `c` into each measure, and the
+   push-out peepholes.
+
+6. **Smart-constructor normalisation (mixed).** Match mjl's peepholes:
+   - concat: `(Text 0,_)=>rhs`, `(_,Text 0)=>self`, `(Text,Text)=>merge`,
+     cost push-out, plus the `fail`/`full` arms (semantic). The non-fail/full
+     arms are **transparent** (output/cost-preserving) — match for DAG-identity
+     parity, but the oracle does not depend on them.
+   - choice: `(Fail,_)=>rhs`, `(_,Fail)=>self` (semantic).
+   - nest/align/reset: short-circuit on `Fail | Align | Reset | Text` → return
+     `d`; `Cost(c,d)` → push cost out. (Transparent: nesting/aligning a
+     no-newline or indentation-overriding node is identity.)
+
+7. **`limit` default → mjl's (behavioural).** `pe.erl` `with_defaults`:
+   `limit => maps:get(limit, Opts, Width)` becomes
+   `limit => maps:get(limit, Opts, trunc(1.2 * Width))` — mjl's exact
+   truncating arithmetic. This is a deliberate, **ledgered** change to a
+   documented default (it is therefore not a silent default rewrite — cf.
+   `CLAUDE.md` safety-gate philosophy; the rule forbids *silent* changes, not
+   reviewed ones). Record it in `running-recommendations.md` and the changelog.
+
+## Risk and sequencing — `full` is the valve
+
+The honest size of this slice is larger than one mergeable diff. The
+recommended landing is **two diffs under one plan**:
+
+- **8a** — the oracle harness + `fail` (with the `failed` mset) +
+  `brk`/`hard_nl` + `reset` + `cost` + the smart-ctors + the `limit` default.
+  Self-contained; every new node is observable and oracle-checkable.
+- **8b** — `full` and whatever measure-level representation its constraint
+  needs, read from `print.rs`.
+
+If porting `full` exceeds the five-iteration budget, **`full` is the designated
+deferral** with re-entry condition "port `Full` + its measure-lock
+representation from `mjl/.../print.rs`"; everything else still lands and the
+alignment claim is scoped honestly to "full algebra minus `full`". Do **not**
+let `full` silently balloon 8a.
+
+## What "match mjl" does NOT mean (anti-over-matching)
+
+mjl is a Rust program with Rust-specific machinery that is **not** part of the
+Πₑ algebra and must not be copied:
+
+- **Memoisation internals.** `memo_weight`, `MEMO_LIMIT`, per-node
+  `newline_count` as mjl threads them, and `Rc`-identity caching are mjl's
+  memo heuristics. Our memoisation is `pe_memo_{map,ets,pd}` and stays as-is.
+  Match the *doc algebra and cost*, not the cache.
+- **The 3-tuple vs 2-tuple cost shape.** raco carries `(badness height _)`;
+  mjl and we both use a 2-tuple. No change.
+- **`to_string()`'s implicit width.** The oracle binary takes `(width, limit)`
+  explicitly via `DefaultCostFactory::new(width, Some(limit))`; never rely on
+  mjl's default-80.
+
+## Scope / non-goals
+
+- **In:** the six algebra additions (`fail`, `brk`, `hard_nl`, `reset`, `full`,
+  `cost`) + smart-ctor normalisation in `pe_doc`; the `failed` mset variant +
+  merge identity in `pe_mset`; the matching `resolve_*` clauses + measure
+  adjusts; the `limit` default change in `pe.erl`; the **mjl differential
+  oracle** (Rust oracle binary + Erlang generator/serialiser/driver + width
+  sweep); extension of `pe_gen` + the in-BEAM oracle property to cover the new
+  nodes; a closing parity report.
+- **Out:** any LFE knowledge-layer / `formatter-map` change (this is engine-only
+  — the new combinators are consumed by slice3+ later); the cost factory (already
+  identical); mjl's memo internals; Unicode display-width parity (ASCII-only
+  oracle corpus); OTP 22–29 backport; coverage gate + CAP audit (carried arc
+  deferrals).
+
+## Open questions for the operator (non-blocking; CC may propose)
+
+1. **Oracle's home in the tree + CI.** Recommended: the Rust oracle lives under
+   `fmt/test/oracle/` as a tiny standalone cargo crate, built on demand and
+   driven by a `make oracle` target / rebar3 alias and a **dedicated** CI job —
+   **not** wired into the default `rebar3 ct` (keeps the BEAM unit CI
+   Rust-toolchain-free, as `bench/` is kept separate). Override if you want it
+   blocking.
+2. **mjl pinning.** Pin an exact mjl version/commit (it is pre-1.0 in spirit
+   despite the `1.0.0` tag) and record it, so the oracle is reproducible.
