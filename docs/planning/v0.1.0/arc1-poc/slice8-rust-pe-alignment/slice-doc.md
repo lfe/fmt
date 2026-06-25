@@ -151,7 +151,8 @@ status. "Transparent" = changes DAG identity but not rendered output or cost;
    truncating arithmetic. This is a deliberate, **ledgered** change to a
    documented default (it is therefore not a silent default rewrite — cf.
    `CLAUDE.md` safety-gate philosophy; the rule forbids *silent* changes, not
-   reviewed ones). Record it in `running-recommendations.md` and the changelog.
+   reviewed ones). Record it in `running-recommendations.md` (A1-R017) and the
+   slice commit.
 
 ## Risk and sequencing — `full` is the valve
 
@@ -262,7 +263,7 @@ corpus latency within noise — same-process A/B over 510 forms: W60 +6.6%,
 W80 −1.3%, W100 +0.6% (best-of-5). The wider limit explores more of the `W⁴`
 layout space but the real corpus shows no pathological tail; synthetic
 stress/guard rows pin `limit` explicitly and are unaffected. Reviewed, not
-silent: recorded in `CHANGELOG.md` and A1-R017.
+silent: recorded in `running-recommendations.md` (A1-R017) and the slice commit.
 
 **`full` disposition: deferred (valve fired).** `full/1` (the locked-last-line
 line-comment constraint) is not implemented; the engine carries no `full` node.

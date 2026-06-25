@@ -121,10 +121,10 @@ Engine-only. Do **not** touch any LFE knowledge layer / `formatter-map`.
 
 7. **`limit` default → mjl's.**
    `pe.erl` `with_defaults`: `limit => maps:get(limit, Opts, trunc(1.2 * Width))`.
-   Note the change in `docs/planning/v0.1.0/running-recommendations.md` and the
-   changelog. Re-run the corpus latency check (slice6 path) and record any
-   movement — a larger `W` explores more layouts (the `W⁴` factor), so watch the
-   guard_SUITE tail.
+   Note the change in `docs/planning/v0.1.0/arc1-poc/running-recommendations.md`
+   (a reviewed-change entry) and the slice commit. Re-run the corpus latency
+   check (slice6 path) and record any movement — a larger `W` explores more
+   layouts (the `W⁴` factor), so watch the guard_SUITE tail.
 
 8. **The mjl differential oracle.**
    - **Wire format:** a canonical, ASCII, line- or S-expr-encoded serialisation
