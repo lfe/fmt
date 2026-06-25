@@ -347,3 +347,43 @@ because the current slice is moving on.
   *reported* costs agree past the page width — either drop our LineM indentation
   charge, or add the equivalent charge to mjl — and then lift the corpus
   indentation bound.
+
+## Slice 9: Declarative LFE Rule Registry
+
+### A1-R019: Data-file format is Erlang terms (`file:consult`), not s-expr
+
+- **Status:** addressed (operator decision 2026-06-24)
+- **Source:** Slice9 cc-prompt + slice-doc open question on data-file syntax.
+- **Concern:** The slice-doc recommended an s-expr `priv/lfe-format-rules.lfe`
+  read via `lfe_io`, on the premise that `lfe` is already a dependency. It is
+  not — `lfe` is **test-only** in `rebar.config`, and `src/` is deliberately
+  dependency-free. An `lfe_io` loader in the production `pe_lfe` would promote
+  `lfe` to a production dep and break default-profile `xref`/`dialyzer`.
+- **Decision:** Use Erlang terms via `file:consult` —
+  `priv/lfe-format-rules.eterm`, `{rule, "defun", define, []}` rows. Zero new
+  deps; `src/` stays dependency-free. The rule *content* is unchanged (form →
+  tag → params; string names; closed atom tag set).
+- **Re-entry trigger:** If a future slice promotes `lfe` to a production
+  dependency for other reasons (e.g. an in-tree `.lfe` source reader), the rules
+  file could move to s-expr to read like its `lfe-indent.el` ancestor.
+
+### A1-R020: Deferred LFE forms are a future conventions slice
+
+- **Status:** open (planning hook)
+- **Source:** Slice9 provenance cross-reference against `lfe-indent.el`.
+- **Concern:** slice9 covers the slice3 dispatch set (+`catch` demonstrator),
+  but the Emacs `define-lfe-indent` table names many forms LFE has conventions
+  for that we do not yet lay out specially: `if`, `try`, `do`, comprehensions
+  (`lc`/`bc`/`list-comp`/`binary-comp`), the `let-function`/`letrec-function`/
+  `let-macro`/`macrolet` binders, `prog1`/`prog2`, `define-module`/
+  `extend-module`, and old-style `begin`/`let-syntax`/`syntax-rules`/`macro`.
+  These fall to the generic fallback today.
+- **Recommendation:** A future **conventions** slice adds these. The ones that
+  fit an existing palette style (`let-function`→`flet-binds`, `begin`→`block`,
+  etc.) are data-only rows; the genuinely new shapes (`if`, `try`, `do`,
+  comprehensions, `prog1/2`'s distinguished head) each need a new palette
+  function + `apply_style` clause + its own golden — one real layout decision
+  apiece, which is why slice9 deliberately added only the single `catch`
+  demonstrator.
+- **Re-entry trigger:** When broadening LFE formatting coverage beyond the
+  slice3 corpus, or before claiming the formatter handles idiomatic LFE.

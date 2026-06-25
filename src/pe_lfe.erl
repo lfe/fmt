@@ -10,16 +10,20 @@
 %%% drifting far to the right. Ordinary calls fall back to generic
 %%% S-expression layout (arguments aligned under the first argument).
 %%%
-%%% Layout rules are selected by matching the binary symbol at the head of a
-%%% `{call, …}'; generic S-expression layout is the fallback, not the strategy.
+%%% Layout rules are selected by a data-driven registry (loaded from
+%%% `priv/lfe-format-rules.eterm'): the binary symbol at the head of a `{call,
+%%% …}' is looked up to a style tag in a fixed palette, dispatched through
+%%% {@link apply_style/6}. Generic S-expression layout is the fallback, not the
+%%% strategy. Adding a form that fits an existing style is a data-only edit.
 %%% @end
 -module(pe_lfe).
 
 -moduledoc "The first LFE knowledge layer: LFE term model + form-aware lowering.".
 
 -export([to_doc/1, to_doc/2, format/2, format_binary/2]).
+-export([load_rules/0, load_rules/1, read_rules/1]).
 
--export_type([form/0]).
+-export_type([form/0, registry/0, style_tag/0]).
 
 -doc """
 An explicit LFE term. Source-like symbols and strings are binaries (never
@@ -38,10 +42,24 @@ call/special-form heads are inspectable without parsing text.
     | {tuple, [form()]}
     | {call, [form()]}.
 
-%% Lowering context: the body indentation step.
--type ctx() :: #{indent := pos_integer()}.
+-doc "A style tag in the fixed layout palette (a closed, developer set).".
+-type style_tag() ::
+    define | lambda | clauses | 'let-binds' | 'flet-binds' | subject | 'receive' | block.
+
+-doc "A loaded rule registry: form-name binary -> {style tag, params}.".
+-type registry() :: #{binary() => {style_tag(), [term()]}}.
+
+%% Lowering context: the body indentation step and the rule registry.
+-type ctx() :: #{indent := pos_integer(), registry := registry()}.
 
 -define(DEFAULT_INDENT, 2).
+
+%% Base rules file (in priv/), and the closed palette tag set.
+-define(RULES_FILE, "lfe-format-rules.eterm").
+-define(RULES_CACHE, {?MODULE, base_rules_v1}).
+-define(STYLE_TAGS, [
+    define, lambda, clauses, 'let-binds', 'flet-binds', subject, 'receive', block
+]).
 
 %%%-------------------------------------------------------------------
 %%% Public surface
@@ -52,10 +70,18 @@ call/special-form heads are inspectable without parsing text.
 to_doc(Form) ->
     to_doc(Form, #{}).
 
--doc "Lower a form to a frozen document. Options: `indent' (body step, default 2).".
+-doc """
+Lower a form to a frozen document. Options:
+- `indent' — body indentation step (default 2);
+- `registry' — a caller-supplied {@type registry()} (tests / overlay); defaults
+  to the cached base registry from `priv/lfe-format-rules.eterm'.
+""".
 -spec to_doc(form(), map()) -> pe_doc:dag().
 to_doc(Form, Opts) ->
-    Ctx = #{indent => maps:get(indent, Opts, ?DEFAULT_INDENT)},
+    Ctx = #{
+        indent => maps:get(indent, Opts, ?DEFAULT_INDENT),
+        registry => maps:get(registry, Opts, load_rules())
+    },
     {Root, Builder} = lower(Form, Ctx, pe_doc:new()),
     pe_doc:freeze(Builder, Root).
 
@@ -70,6 +96,62 @@ format(Form, Opts) ->
     {binary(), pe_measure:measure(), pe_resolve:stats()}.
 format_binary(Form, Opts) ->
     pe:format_binary(to_doc(Form), Opts).
+
+%%%-------------------------------------------------------------------
+%%% Rule registry: data-driven head dispatch
+%%%
+%%% The registry maps a special-form head (binary) to a style tag in the fixed
+%%% palette plus params. The base is `priv/lfe-format-rules.eterm', read once via
+%%% `file:consult/1' (pure OTP — no lfe runtime dependency) and cached read-only
+%%% in `persistent_term' (the cache is never the source of truth: callers can
+%%% pass their own `registry'). Form names are strings -> binary keys, so no atom
+%%% is minted from a form name; style tags are atoms from this trusted in-repo
+%%% config, validated against the closed palette set at load.
+%%%-------------------------------------------------------------------
+
+-doc "The cached base registry from `priv/lfe-format-rules.eterm' (read once).".
+-spec load_rules() -> registry().
+load_rules() ->
+    case persistent_term:get(?RULES_CACHE, undefined) of
+        undefined ->
+            Registry = read_rules(base_rules_path()),
+            persistent_term:put(?RULES_CACHE, Registry),
+            Registry;
+        Registry ->
+            Registry
+    end.
+
+-doc "The base registry with a user `Overlay' merged over it (overlay wins per form).".
+-spec load_rules(registry()) -> registry().
+load_rules(Overlay) when is_map(Overlay) ->
+    maps:merge(load_rules(), Overlay).
+
+-doc """
+Read and validate a rules file into a {@type registry()}. Each `{rule, Name,
+Tag, Params}' term contributes `Name' (a string) as a binary key mapped to
+`{Tag, Params}'; an unknown style tag is a load error, not a silent skip.
+""".
+-spec read_rules(file:name_all()) -> registry().
+read_rules(Path) ->
+    {ok, Terms} = file:consult(Path),
+    parse_rules(Terms, #{}).
+
+parse_rules([], Registry) ->
+    Registry;
+parse_rules([{rules_version, V} | Rest], Registry) when is_integer(V) ->
+    parse_rules(Rest, Registry);
+parse_rules([{rule, Name, Tag, Params} | Rest], Registry) when
+    is_list(Name), is_atom(Tag), is_list(Params)
+->
+    case lists:member(Tag, ?STYLE_TAGS) of
+        true -> parse_rules(Rest, Registry#{list_to_binary(Name) => {Tag, Params}});
+        false -> error({unknown_style_tag, Tag, Name})
+    end;
+parse_rules([Bad | _], _Registry) ->
+    error({malformed_rule, Bad}).
+
+base_rules_path() ->
+    filename:join(code:priv_dir(fmt), ?RULES_FILE).
 
 %%%-------------------------------------------------------------------
 %%% Lowering: form -> {id, builder}
@@ -98,30 +180,41 @@ lower({call, Forms}, Ctx, B) ->
     call_form(Forms, Ctx, B).
 
 %%%-------------------------------------------------------------------
-%%% Call dispatch: match the head symbol; generic S-expression is fallback
+%%% Call dispatch: registry lookup -> apply_style; generic S-expression fallback
 %%%-------------------------------------------------------------------
 
 -spec call_form([form()], ctx(), pe_doc:builder()) -> {pe_doc:id(), pe_doc:builder()}.
-call_form([{sym, Head} | Args] = Forms, Ctx, B) ->
-    case Head of
-        <<"defun">> -> def_form(Head, Args, Ctx, B);
-        <<"defmacro">> -> def_form(Head, Args, Ctx, B);
-        <<"lambda">> -> lambda_form(Head, Args, Ctx, B);
-        <<"match-lambda">> -> clauses_block([{sym, Head}], Args, Ctx, B);
-        <<"let">> -> let_form(Head, Args, Ctx, B);
-        <<"let*">> -> let_form(Head, Args, Ctx, B);
-        <<"flet">> -> flet_form(Head, Args, Ctx, B);
-        <<"fletrec">> -> flet_form(Head, Args, Ctx, B);
-        <<"case">> -> subject_block(Head, Args, Ctx, B);
-        <<"receive">> -> receive_form(Head, Args, Ctx, B);
-        <<"cond">> -> clauses_block([{sym, Head}], Args, Ctx, B);
-        <<"progn">> -> body_block([{sym, Head}], Args, Ctx, B);
-        <<"eval-when-compile">> -> body_block([{sym, Head}], Args, Ctx, B);
-        _ -> generic_call(Forms, Ctx, B)
+call_form([{sym, Head} | Args] = Forms, #{registry := Registry} = Ctx, B) ->
+    case maps:find(Head, Registry) of
+        {ok, {Tag, Params}} -> apply_style(Tag, Params, Head, Args, Ctx, B);
+        error -> generic_call(Forms, Ctx, B)
     end;
 call_form(Forms, Ctx, B) ->
     %% head is not a plain symbol (e.g. a lambda in head position)
     generic_call(Forms, Ctx, B).
+
+%% The fixed style palette, reached through one closed dispatch. Each clause
+%% routes to a bespoke layout function (the irreducible code); adding a *form*
+%% is a data row in priv/lfe-format-rules.eterm, adding a *style* is one clause
+%% here plus a palette function. Params are unused today (the slot is open).
+-spec apply_style(style_tag(), [term()], binary(), [form()], ctx(), pe_doc:builder()) ->
+    {pe_doc:id(), pe_doc:builder()}.
+apply_style(define, _Params, Head, Args, Ctx, B) ->
+    def_form(Head, Args, Ctx, B);
+apply_style(lambda, _Params, Head, Args, Ctx, B) ->
+    lambda_form(Head, Args, Ctx, B);
+apply_style(clauses, _Params, Head, Args, Ctx, B) ->
+    clauses_block([{sym, Head}], Args, Ctx, B);
+apply_style('let-binds', _Params, Head, Args, Ctx, B) ->
+    let_form(Head, Args, Ctx, B);
+apply_style('flet-binds', _Params, Head, Args, Ctx, B) ->
+    flet_form(Head, Args, Ctx, B);
+apply_style(subject, _Params, Head, Args, Ctx, B) ->
+    subject_block(Head, Args, Ctx, B);
+apply_style('receive', _Params, Head, Args, Ctx, B) ->
+    receive_form(Head, Args, Ctx, B);
+apply_style(block, _Params, Head, Args, Ctx, B) ->
+    body_block([{sym, Head}], Args, Ctx, B).
 
 %% (defun name clause…) / (defun name (args) body…)
 def_form(Kw, [Name | Rest], Ctx, B) ->

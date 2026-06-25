@@ -59,17 +59,29 @@ Three pieces:
 `registry_lookup(Head, Ctx)` → `apply_style/6` (data in, closed code dispatch
 out).
 
-### The data format — and why s-expr, not JSON/TOML
+### The data format — a typed term file, not JSON/TOML
+
+> **Adapted in implementation (A1-R019).** This section originally recommended
+> an s-expr `.lfe` file read via `lfe_io`, on the premise "`lfe` is already a
+> dep." That premise was **wrong** — `lfe` is a *test-only* dep and `src/` is
+> deliberately dependency-free (`rebar.config`), so an `lfe_io` loader in
+> production `pe_lfe` would have promoted `lfe` to a prod dependency and broken
+> default-profile xref/dialyzer. The source of truth is therefore
+> `priv/lfe-format-rules.eterm` (Erlang terms via `file:consult` — pure OTP).
+> The argument below is unchanged in substance — it was always "typed term data,
+> not functions, not JSON" — only the surface syntax differs; Erlang terms
+> preserve the same atoms/strings/ints natively. CC's call, correctly recorded
+> as format-adapted (A1S9-1) with the content unchanged.
 
 The rule vocabulary needs only: a form name, a style tag, and a small params
 payload. The value types involved are **strings, atoms (a closed tag set),
-small integers, and booleans** — nothing rich. An s-expr term file preserves
-exactly those natively, with **zero coercion and zero parser dependency beyond
-`lfe` (already a dep)**, and it reads like the `lfe-indent.el` ancestor it
+small integers, and booleans** — nothing rich. A native BEAM term file
+(`file:consult`) preserves exactly those with **zero coercion and zero parser
+dependency** (pure OTP), and it reads close to the `lfe-indent.el` ancestor it
 descends from. JSON would force atom↔string coercion and add a dep; TOML the
-same. So the source of truth is s-expr; any other representation (a derived
-JSON for a future non-BEAM consumer; a codegen module if ever wanted) is a
-**derived build artifact**, never hand-maintained.
+same. So the source of truth is the term file; any other representation (a
+derived JSON for a future non-BEAM consumer; a codegen module if ever wanted) is
+a **derived build artifact**, never hand-maintained.
 
 Sketch (illustrative; CC finalizes):
 
@@ -174,3 +186,77 @@ Building it for real waits on the artifact that would consume it.
   types, `lfe` already a dep, lineage from the Emacs table). Zero-dependency
   alternative: Erlang terms via `file:consult` (`{rule, "defun", define, []}`).
   Recommendation stands unless you prefer to keep the loader pure-Erlang.
+
+  **Resolved (operator, 2026-06-24): Erlang terms via `file:consult`.** The
+  recommendation rested on "`lfe` already a dep", but `lfe` is **test-only** in
+  `rebar.config` (`{deps, []}` for production) and the config explicitly keeps
+  `src/` dependency-free. `pe_lfe` is production code, so reading the file via
+  `lfe_io` would promote `lfe` to a production dependency (and break
+  default-profile `xref`/`dialyzer`). `file:consult` keeps the loader pure-OTP
+  with zero new deps. The data file is `priv/lfe-format-rules.eterm` (Erlang
+  terms); A1S9-1's "s-expr format" criterion is adapted to Erlang-terms with
+  this rationale — the *content* (form → tag → params, strings for names, atoms
+  for the closed tag set) is unchanged.
+
+## Closing report (slice9)
+
+**Registry wired.** `call_form/4`'s `case Head of …` table is gone; it is now
+`maps:find(Head, Registry)` → `apply_style/6` → `generic_call` fallback. The
+base registry is `priv/lfe-format-rules.eterm` (13 behaviour-preserving rules +
+1 demonstrator), read once via `file:consult/1` and cached read-only in
+`persistent_term`; `to_doc/2` threads it through `ctx()` and honours a
+caller-supplied `registry` (and `load_rules/1` merges a user overlay over the
+base). Form names are string→binary keys (no atom minted from a form name);
+style tags are atoms from the closed palette set, validated at load (unknown tag
+= load error). Engine (`pe_*`) untouched; `pe_lfe` public surface unchanged.
+
+**Behaviour-identical (the gate).** All 20 `pe_lfe_samples` × widths {40,60,80,
+100} = 80 rows render **byte-identical** to the pre-slice9 hardcoded path,
+captured in `test/fixtures/lfe_format_baseline.eterm` and asserted per-row by
+`pe_lfe_registry_tests` (one generated case each). Every slice3 golden passes
+unchanged. Full floor: eunit 332/0, proper 8/8, ct 2/2, xref + dialyzer clean.
+
+**Provenance vs `lfe-indent.el` `define-lfe-indent`.** Cross-reference of the
+canonical Emacs table (LFE 2.1.2). Three dispositions — **covered** (a rule
+row), **application** (intentionally the generic fallback), **deferred** (a real
+LFE convention needing a *new palette style*, named not dropped):
+
+| Emacs form(s) | indent | Disposition |
+|---|---|---|
+| `case` | 1 | covered → `subject` |
+| `eval-when-compile`, `progn` | 0 | covered → `block` |
+| `flet`, `fletrec` | 1 | covered → `flet-binds` |
+| `lambda` | 1 | covered → `lambda` |
+| `let`, `let*` | 1 | covered → `let-binds` |
+| `match-lambda` | 0 | covered → `clauses` |
+| `receive` | 0 | covered → `receive` |
+| `catch` | 0 | covered → `block` (**slice9 demonstrator**) |
+| `define-function`, `define-macro` | 1 | covered-by-surface: our corpus uses the `defun`/`defmacro` surface macros (→ `define`); the core names are a data-only add when needed |
+| `:`, `call` | 2 | application (qualified/explicit call → generic fallback) |
+| `after` | 1 | handled *inside* `receive`/`case` clause lowering, not a head rule |
+| `if` | 1 | **deferred** — needs an `if` style (test/then/else convention) |
+| `when` | 0 | **deferred** — block-like; not added (keep the demonstrator singular) |
+| `do` | 2 | **deferred** — needs a `do` style |
+| `try` | 1 | **deferred** — needs a `try`/`catch`/`after` style |
+| `bc`, `binary-comp`, `lc`, `list-comp` | 1 | **deferred** — comprehension style |
+| `let-function`, `letrec-function`, `let-macro`, `macrolet` | 1 | **deferred** — `flet-binds`-like, data-only add once corpus covers them |
+| `match-spec`, `syntax-rules`, `macro` | 0 | **deferred** — `clauses`/`block`-like |
+| `prog1`, `prog2` | 1, 2 | **deferred** — block-with-distinguished-head (needs a params knob) |
+| `define-module`, `extend-module`, `begin`, `let-syntax`, `syntaxlet`, `defflavor` | 0–3 | **deferred** — module/old-style forms; `defflavor` even the Emacs table flags as irregular |
+
+`cond` is in our seed (LFE convention → `clauses`) though absent from the Emacs
+table. No table form is silently dropped: each is covered, application, or a
+named deferred row. The deferred forms are a future *conventions* slice (each
+needs its own golden), explicitly out of scope here.
+
+**Demonstrator (payoff).** `catch` — in the Emacs table, not previously
+special-cased — was added as a **single data row** (`{rule, "catch", block,
+[]}`) plus one golden, with **zero `pe_lfe` layout-code change**, proving
+form-addition is data-only: `(catch (foo x) (bar y))` flat at width 80, a
+2-indented vertical block at width 10.
+
+**JSON derive (A1S9-13): no-op (deferred).** Designed-for but not built — there
+is no Rust LFE formatter to consume it (slice8's oracle checks the rules-free
+engine). The format is deliberately flat/typed so a ~20-line escript can emit
+`[{form,style,params}]` when a consumer exists. Re-entry: when a non-BEAM LFE
+formatter needs the rules.

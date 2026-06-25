@@ -1,0 +1,48 @@
+%%% -*- erlang -*-
+%%% LFE formatting rule registry — DATA, not code (slice9).
+%%%
+%%% Maps an LFE special-form head -> a style tag in pe_lfe's fixed palette ->
+%%% an (open) params list. Read at lowering entry by pe_lfe:read_rules/1 via
+%%% file:consult/1 (pure OTP — no lfe runtime dependency; src/ stays
+%%% dependency-free). Adding a form that fits an existing style is a data-only
+%%% edit here; a genuinely new layout shape needs a new palette function + one
+%%% apply_style/6 clause in pe_lfe (rare).
+%%%
+%%% Format (one Erlang term per clause):
+%%%   {rules_version, Integer}.
+%%%   {rule, "<form-name>", <style-tag-atom>, [<params>]}.
+%%%
+%%% Form names are STRINGS -> binary registry keys, so nothing is minted as an
+%%% atom from a form name (slice3 A1S3-2 discipline). Style tags ARE atoms: a
+%%% closed, developer-authored set (define | lambda | clauses | let-binds |
+%%% flet-binds | subject | receive | block), validated at load; this file is
+%%% trusted in-repo config, a distinct category from formatted input.
+%%%
+%%% Provenance: cross-referenced against lfe/emacs/lfe-indent.el's
+%%% define-lfe-indent table (see slice9 closing report for the covered/deferred
+%%% map). Params are empty today; the slot is open so a future per-style knob
+%%% (body-indent step, distinguished-head count, …) does not break the format.
+
+{rules_version, 1}.
+
+%% --- The behaviour-preserving seed: exactly today's call_form/4 dispatch. ---
+%%      form-name             style         params
+{rule, "defun",              define,       []}.
+{rule, "defmacro",           define,       []}.
+{rule, "lambda",             lambda,       []}.
+{rule, "match-lambda",       clauses,      []}.
+{rule, "let",                'let-binds',  []}.
+{rule, "let*",               'let-binds',  []}.
+{rule, "flet",               'flet-binds', []}.
+{rule, "fletrec",            'flet-binds', []}.
+{rule, "case",               subject,      []}.
+{rule, "receive",            'receive',    []}.
+{rule, "cond",               clauses,      []}.
+{rule, "progn",              block,        []}.
+{rule, "eval-when-compile",  block,        []}.
+
+%% --- Demonstrator (slice9 A1S9-10): a form from the Emacs indent table not
+%%     previously special-cased, fitting an existing style with NO new palette
+%%     code — proving form-addition is a data-only edit. `catch` lays its body
+%%     out as a vertical block, matching lfe-indent.el's `(catch 0)`.
+{rule, "catch",              block,        []}.
