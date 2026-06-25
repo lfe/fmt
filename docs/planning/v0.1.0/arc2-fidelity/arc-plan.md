@@ -43,17 +43,24 @@ corpus (slice1 sizing): floats (~222), binary literals (~114), maps (1), chars
 
 | # | Slice | Delivers | Gate |
 |---|-------|----------|------|
-| 1 | **faithful-reader** | lossless `form()` (+ float/char/binary/map, faithful strings) + a faithful LFE-reader bridge (reuse `lfe_io`); top-level positions; **no comments yet** | AST round-trip `read∘format ≡ read` (structural) + **0 unmodeled constructs** across the corpus |
-| 2 | **comment-fidelity** | separate comment lexer + attach-by-position; thread comments through `pe_lfe` lowering so they render in place ("the clever comment slice") | every comment in input present in output on the corpus |
-| 3 | **acceptance** | idempotence + semantic round-trip harness, run as the formal acceptance suite over examples + tests + cl/clj | `format∘format == format` and `read∘format ≡ read` corpus-wide |
-| 4 | **width-model** (A1-R008) | decide + encode display-width policy (ASCII bytes vs Unicode grapheme/display width) | width semantics specced + tested |
-| 5 | **conventions** (A1-R020) | the forms slice9 deferred for needing *new* palette styles; broaden the registry | deferred forms styled with named rules |
+| 1 | **faithful-reader** (done) | lossless `form()` (+ float/binary/map/splice, faithful strings) + an `lfe_io`-based faithful reader; top-level positions; **no comments** | AST round-trip `read∘format ≡ read` + **0 unmodeled** across the corpus — **739/739, done** |
+| 2 | **positioned reader** | **adapt `lfe_scan`** (Apache-2.0) → binary-based, column-keeping, comment-emitting scanner + a thin positioned recursive-descent parser → a positioned, comment-trivia-bearing tree (`cst()`); `cst→form()` strip | `cst→form()` `=:=` slice1/`lfe_io` AST (739/739 differential oracle) + every comment captured with position + a position on every node; zero-dep |
+| 3 | **comment rendering** | thread the captured trivia through `pe_lfe` lowering (**Roslyn following-token model**) so comments render in place; intra-form + inter-form, exact | every input comment present + exactly placed on the corpus; idempotence-with-comments |
+| 4 | **acceptance** | idempotence + semantic round-trip + comment-preservation harness as the formal acceptance suite over examples + tests + cl/clj | `format∘format == format`, `read∘format ≡ read`, comments preserved — corpus-wide |
+| 5 | **width-model** (A1-R008) | decide + encode display-width policy (ASCII bytes vs Unicode grapheme/display width) | width semantics specced + tested |
+| 6 | **conventions** (A1-R020) | the forms slice9 deferred for needing *new* palette styles; broaden the registry | deferred forms styled with named rules |
 
-Reader is **two slices** (1 + 2): slice1 alone unlocks idempotence + semantic
-round-trip (which don't need comments), so we get real fidelity signal before
-the fiddly comment work. LFE's reader does the AST faithfully; the only thing it
-loses is comments — exactly the slice2 boundary ("pull from LFE, get clever with
-comments").
+**Reader = two slices** (2 + 3). "Full intra-form" comment fidelity (operator
+decision 2026-06-25) requires per-subform positions, which `lfe_io` does not
+give — so we build our own positioned reader by **adapting `lfe_scan`** rather
+than from scratch: it already computes line+col (discards them) and handles
+every LFE surface form + all three comment kinds, so we make surgical edits
+(keep columns, emit comments as trivia, binary-based for speed) and inherit 20
+years of edge-case correctness. The slice1 `lfe_io` reader becomes the
+**differential oracle** (same pattern as slice8's Rust oracle). Trivia uses the
+**Roslyn following-token model** (rust-analyzer is migrating to it; cleaner for
+formatters). The adapted scanner is also a candidate **upstream contribution** —
+built to that quality bar, but the offer is decided *later*, never gating arc2.
 
 ## Carried forward from arc1 running-recommendations
 
@@ -68,21 +75,24 @@ OTP 22–29 backport (A1-R005), coverage gate, CAP strength audit, packaging /
 JSR-npm-Hex publish, and **wiring the reader into the user-facing CLI /
 `rebar3_lfe` provider**. These are release-hardening, not fidelity.
 
-## The dependency-posture decision (surfaced, not silent)
+## The dependency-posture decision (RESOLVED by the adapted reader)
 
-A faithful reader reuses LFE's reader (`lfe_io`), today a **test-profile** dep.
-The engine (`pe_doc`/`pe_cost`/`pe_mset`/`pe_resolve`/`pe_render`/`pe_measure`)
-is and stays **zero runtime deps** — the reusable Πₑ library. Recommended
-posture: the **LFE adapter** (`pe_lfe`, `pe_lfe_read`) is explicitly the
-LFE-coupled layer and *may* depend on LFE's reader at runtime; the README's
-"zero deps" claim becomes precise ("engine: zero deps; LFE front-end: uses LFE").
+The earlier worry was that a faithful reader leaning on `lfe_io` would
+eventually force `lfe` to become a **runtime** dep. Adapting `lfe_scan` into our
+own in-tree scanner **dissolves that worry**: our reader needs no `lfe` at
+runtime, so:
 
-To avoid entangling this with the fidelity proof, **slices 1–3 stay in the test
-profile** (reader in `test/`, `lfe` test-dep) — they prove fidelity via tests.
-Graduating the reader to `src/` + flipping `lfe` to a runtime dep + CLI wiring
-is a deliberate later step (late arc2 or arc3-release), gated on operator
-confirmation per CLAUDE.md (a dependency-posture change is a methodology
-decision, never a silent wrapper patch).
+- The engine (`pe_doc`/`pe_cost`/`pe_mset`/`pe_resolve`/`pe_render`/`pe_measure`)
+  **and** the LFE front-end (`pe_lfe`, the new `pe_lfe_cst`/reader) all stay
+  **zero runtime deps**. `{deps, []}` holds permanently.
+- `lfe` stays a **test-only** dependency *forever* — purely as the differential
+  oracle (`cst→form() =:= lfe_io` on the corpus). It never ships.
+
+This is a strict improvement over the slice1 posture (slice1's `lfe_io`-based
+reader stays as the test oracle; the slice2 adapted reader is the production
+path). Licensing: `lfe_scan` is Apache-2.0 (Robert Virding) — adapt with a
+source attribution + NOTICE entry. Wiring the production reader into the
+user-facing CLI / `rebar3_lfe` provider remains an arc3-release step.
 
 ## How we work (unchanged)
 
