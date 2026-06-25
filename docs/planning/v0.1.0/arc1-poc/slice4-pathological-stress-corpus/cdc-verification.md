@@ -68,10 +68,13 @@ Caveat-checklist headline counters (all reproduced exactly)
   nofit_text_180   @20  : badness=25600                     ✓
   tiny_width_call_30 @20: badness=656100                    ✓
 
-Build/verify commands (compile, eunit 132, ct, proper 5/5, dialyzer 15 files,
-xref)
-  DEFERRED to operator-run CDC — not re-run here (no OTP 28 toolchain).
-  Named tests exist in committed source; pass/fail not independently confirmed.
+Build/verify commands (compile, eunit, ct, proper, dialyzer, xref)
+  CLEAN-TREE GREEN — CC re-ran the gates on a clean checkout at f1cc23d
+  (the cleanup commit, which includes slice1–6): compile zero-warning;
+  eunit 207 tests, 0 failures; ct 2 passed; proper 5/5; dialyzer 15 files clean;
+  xref clean. Caveat: CC is the implementer-adjacent seat, so this is clean-tree
+  evidence rather than fully-independent CDC — but it discharges the gate-rerun
+  risk. (This chat seat had no OTP 28 toolchain to run them itself.)
 ```
 
 ## Ledger walk
@@ -95,7 +98,7 @@ xref)
 | A1S4-22 | verified done | `nofit_text_180@20=25600`, `tiny_width_call_30@20=656100` reproduced |
 | A1S4-23 | structurally verified | stdout-summary code present in harness; not exercised here |
 | A1S4-24 | verified done | Caveat Checklist names proxy limitation (no exact all-tainted instrumentation) honestly |
-| A1S4-25..26 | DEFERRED (operator-run) | engineering-gate commands not re-run; named tests exist |
+| A1S4-25..26 | verified (clean-tree, CC-run) | gates green at f1cc23d: compile/eunit 207/ct 2/proper 5/dialyzer 15/xref |
 | A1S4-27..28 | valid deferred | OTP 22–29 backport; coverage + CAP audit — explicitly carried, not dropped |
 
 ## Findings
@@ -116,6 +119,8 @@ xref)
 ## Closure
 
 CDC accepts slice4 at the stated scope (pathological stress corpus, test-only,
-counter-level evidence), **conditional on operator-run of the engineering-gate
-commands** (A1S4-25/26). No silent drops; scope is clean; all reproducible
-counters match. Recommend recording closing SHA `96dcdfd` (F1).
+counter-level evidence). All reproducible counters match; no silent drops;
+scope is clean; the engineering gates are green on a clean tree at `f1cc23d`
+(CC-run — clean-tree evidence, see boundary note). F1 resolved: closing SHA
+`96dcdfd` recorded (commit `82d665b`). Remaining: final fully-independent
+sign-off is optional given clean-tree green.

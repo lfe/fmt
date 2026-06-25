@@ -66,8 +66,12 @@ Latency sanity (refined run)
   Heaviest row = fletrec_bindings_12 @ 959us; all other rows < ~0.5ms.
   The refinements did not introduce a latency regression.
 
-Build/verify commands (compile, eunit 153, ct 2/2, proper 5/5, dialyzer 15)
-  DEFERRED to operator-run CDC — not re-run here.
+Build/verify commands (compile, eunit, ct, proper, dialyzer, xref)
+  CLEAN-TREE GREEN — CC re-ran on a clean checkout at f1cc23d (includes
+  slice1–6): compile zero-warning; eunit 207, 0 failures; ct 2 passed;
+  proper 5/5; dialyzer 15 files clean; xref clean. Clean-tree evidence
+  (CC is implementer-adjacent), not fully-independent CDC, but it discharges
+  the gate-rerun risk.
 ```
 
 ## Ledger walk
@@ -88,7 +92,7 @@ Build/verify commands (compile, eunit 153, ct 2/2, proper 5/5, dialyzer 15)
 | A1S5-20 | verified done | Caveat Checklist names shapes + stable counters, timing treated as illustrative |
 | A1S5-21 | verified done | **no resolver/mset/cost modules in diff** |
 | A1S5-22 | verified done | **no parser/source-span/comment modules in diff**; still lowers explicit `form()` |
-| A1S5-23..24 | DEFERRED (operator-run) | engineering-gate commands not re-run; named tests exist |
+| A1S5-23..24 | verified (clean-tree, CC-run) | gates green at f1cc23d: compile/eunit 207/ct 2/proper 5/dialyzer 15/xref |
 | A1S5-25..26 | valid deferred | OTP backport; coverage + CAP audit — carried, not dropped |
 
 ## Findings
@@ -108,7 +112,8 @@ Build/verify commands (compile, eunit 153, ct 2/2, proper 5/5, dialyzer 15)
 ## Closure
 
 CDC accepts slice5 at the stated scope (knowledge-layer layout refinement, no
-resolver/parser change), **conditional on operator-run of the engineering-gate
-commands** (A1S5-23/24). Both target caveats resolved with exact-assertion
-golden tests; scope clean; CSV reproduced. Recommend recording closing SHA
-`a2226e0` (F1).
+resolver/parser change). Both target caveats resolved with exact-assertion
+golden tests; scope clean; CSV reproduced; engineering gates green on a clean
+tree at `f1cc23d` (CC-run — clean-tree evidence). F1 resolved: closing SHA
+`a2226e0` recorded (commit `62cf9fb`). Final fully-independent sign-off is
+optional given clean-tree green.
