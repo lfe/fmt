@@ -33,7 +33,7 @@ commit the (already-authored, do-not-edit) CDC verification files.
 
 | ID | Criterion | Verify | Status |
 |----|-----------|--------|--------|
-| CLN-1 | slice4 ledger Closure line records closing SHA `96dcdfd` and date 2026-06-22/23, replacing the "pending (… working tree)" text | `git show HEAD:docs/planning/v0.1.0/arc1-poc/slice4-pathological-stress-corpus/ledger.md \| tail -6` | planned |
+| CLN-1 | slice4 ledger Closure line records closing SHA `96dcdfd` and date 2026-06-22/23, replacing the "pending (… working tree)" text | `git show HEAD:docs/planning/v0.5.0/arc1-poc/slice4-pathological-stress-corpus/ledger.md \| tail -6` | planned |
 | CLN-2 | slice4 ledger "CDC verification:" line points at `cdc-verification.md` and states the operator-run command gate is still outstanding | ledger review | planned |
 | CLN-3 | slice5 ledger Closure line records closing SHA `a2226e0` and date, replacing "pending (… working tree)" | `git show HEAD:…/slice5-lfe-layout-refinements/ledger.md \| tail -6` | planned |
 | CLN-4 | slice5 ledger "CDC verification:" line points at `cdc-verification.md` + operator-run gate note | ledger review | planned |
@@ -44,7 +44,7 @@ commit the (already-authored, do-not-edit) CDC verification files.
 ## Steps
 
 1. **slice4 ledger** — in
-   `docs/planning/v0.1.0/arc1-poc/slice4-pathological-stress-corpus/ledger.md`,
+   `docs/planning/v0.5.0/arc1-poc/slice4-pathological-stress-corpus/ledger.md`,
    change the Closure block to:
 
    ```
@@ -79,14 +79,14 @@ commit the (already-authored, do-not-edit) CDC verification files.
    commit — your call, but keep them scoped):
 
    ```sh
-   git add docs/planning/v0.1.0/arc1-poc/slice4-pathological-stress-corpus/ledger.md
+   git add docs/planning/v0.5.0/arc1-poc/slice4-pathological-stress-corpus/ledger.md
    git commit -m "ledger: record slice4 closing SHA (96dcdfd)"
 
-   git add docs/planning/v0.1.0/arc1-poc/slice5-lfe-layout-refinements/ledger.md
+   git add docs/planning/v0.5.0/arc1-poc/slice5-lfe-layout-refinements/ledger.md
    git commit -m "ledger: record slice5 closing SHA (a2226e0)"
 
-   git add docs/planning/v0.1.0/arc1-poc/slice4-pathological-stress-corpus/cdc-verification.md \
-           docs/planning/v0.1.0/arc1-poc/slice5-lfe-layout-refinements/cdc-verification.md
+   git add docs/planning/v0.5.0/arc1-poc/slice4-pathological-stress-corpus/cdc-verification.md \
+           docs/planning/v0.5.0/arc1-poc/slice5-lfe-layout-refinements/cdc-verification.md
    git commit -m "arc1-poc: add CDC verification for slice4 + slice5 (static review)"
    ```
 

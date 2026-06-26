@@ -1,4 +1,4 @@
-# CC prompt - fmt v0.1.0 · arc1-poc / slice2-render-real-lfe
+# CC prompt - fmt v0.5.0 · arc1-poc / slice2-render-real-lfe
 
 You are CC. Continue the BEAM-native Πe (`PrettyExpressive`) PoC from
 `arc1-poc / slice1-resolver`. Slice1 closed the resolver core at the
@@ -11,11 +11,11 @@ not the final LFE formatter.
 
 ## Read first
 
-- `docs/planning/v0.1.0/pretty-expressive-port-plan.md` - especially §2, §3,
+- `docs/planning/v0.5.0/pretty-expressive-port-plan.md` - especially §2, §3,
   and §5.
-- `docs/planning/v0.1.0/arc1-poc/slice1-resolver/cc-prompt.md`.
-- `docs/planning/v0.1.0/arc1-poc/slice1-resolver/ledger.md`.
-- `docs/planning/v0.1.0/arc1-poc/slice1-resolver/cdc-verification.md`.
+- `docs/planning/v0.5.0/arc1-poc/slice1-resolver/cc-prompt.md`.
+- `docs/planning/v0.5.0/arc1-poc/slice1-resolver/ledger.md`.
+- `docs/planning/v0.5.0/arc1-poc/slice1-resolver/cdc-verification.md`.
 - This slice's `slice-doc.md` and `ledger.md`.
 
 Load **collaboration-framework** (ledger discipline) and **erlang-guidelines**

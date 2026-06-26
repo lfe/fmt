@@ -1,4 +1,4 @@
-# CC prompt — fmt v0.1.0 · S1: Πₑ engine core + memo-backend experiment
+# CC prompt — fmt v0.5.0 · S1: Πₑ engine core + memo-backend experiment
 
 You are CC. Stand up the **core of a BEAM-native port of Πₑ** (PrettyExpressive,
 Porncharoenwase et al., OOPSLA 2023) — the generic, optimal, expressive pretty
@@ -14,7 +14,7 @@ the memo-backend question with measurements rather than priors.
 
 ## Read first (specification — do not re-derive)
 
-- `docs/planning/v0.1.0/pretty-expressive-port-plan.md` — §2 (the algorithm:
+- `docs/planning/v0.5.0/pretty-expressive-port-plan.md` — §2 (the algorithm:
   Σₑ, cost factory, measures, measure sets, resolver), §3 (Erlang design,
   module list), §5 (the spike). This is the spec; follow it.
 - `docs/research/[2023] Porncharoenwase - A Pretty Expressive Printer.pdf` —

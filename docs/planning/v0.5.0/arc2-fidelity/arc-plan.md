@@ -3,7 +3,7 @@
 > The arc that turns the proven Πₑ engine into a **correct LFE formatter**:
 > faithful input, meaning-preserving + idempotent + comment-preserving output,
 > verified against the real LFE corpus. Successor to `arc1-poc`. Same version
-> line (`v0.1.0`). Release-hardening is explicitly *out of scope* → future
+> line (`v0.5.0`). Release-hardening is explicitly *out of scope* → future
 > `arc3-release`.
 
 ## Why this arc (and why it's not arc1-poc anymore)

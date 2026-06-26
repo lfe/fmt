@@ -73,9 +73,67 @@ green and soundly compared, zero-dep preserved, engine/lowering untouched.
 Engineering floor relied on CC's clean-tree run (noted). Recommend committing
 2a as its own unit and proceeding to 2b as a separate diff + commit + CDC.
 
-## slice2b (parser + CST) — PENDING
+## slice2b (parser + CST) — ACCEPT
 
-Rows A2S2-6..12 (CST, Roslyn trivia attachment, `cst_to_form/1`, the 739 AST
-differential vs slice1's `lfe_io` reader, comment-capture gate) land in 2b and
-will be verified when 2b closes. The scanner already emits every comment as a
-trivia token (no token-level loss); 2b owns *attachment* + the capture count.
+Reviewed commit `1d156b6`. Static, evidence-based; build floor relied on CC's
+run.
+
+### Evidence
+
+```text
+Scope — git show --stat 1d156b6
+  Touched ONLY src/pe_lfe_cst.erl + test/pe_lfe_cst_tests.erl. Engine, pe_lfe
+  lowering, rebar.config NOT touched; {deps,[]}; src/ adds only scan+cst. ✓
+
+cst() structure (A2S2-6/12)
+  -record(cst,{sexpr,pos,lead,trail}); exports read/1, read_forms/1,
+  cst_to_sexpr/1, comments/1, positions/1, pos/lead/trail/children. Every node
+  built with a pos; every_node_has_position_test. ✓
+
+Roslyn trivia (A2S2-7/11)
+  attach_trivia/1 (trailing = same end-of-line; else leading→next); hand-checked
+  leading_and_trailing_test, inner_comment_leads_next_element_test,
+  comment_trailing_open_paren_leads_first_test. ✓
+
+AST differential (A2S2-9) — the 739 gate, verified for soundness
+  corpus_ast_differential_test_: [cst_to_sexpr(C) || C <- read(Bin)] =:=
+  lfe_io:parse_file(File) over the corpus → 739/739 forms, 33/33 files.
+  #(/#M/#B/#' reader-constructors built to match lfe_io's read-evaluation;
+  #'=:=/2 → [function,'=:=',2] special case tested. ✓
+
+Comment capture (A2S2-10) — the no-loss gate
+  corpus_comment_capture_test_: scanner comment count =:= length(comments(read))
+  → 1826 = 1826, 0 lost; every captured comment carries a position. ✓
+
+Floor (CC-run, clean tree): eunit 371/0, proper 8/8, ct 2/2, xref+dialyzer clean.
+```
+
+### Findings
+
+- **F1 — `cst_to_sexpr` (not `cst_to_form`): interpretation is logically
+  sound.** CC strips to the bare `lfe_io`-equivalent s-expression (keeping `src/`
+  zero-dep) rather than to `pe_lfe:form()`. The claim "739 raw-AST equality ⇒
+  form-level equality" is **valid by referential transparency**: slice1's
+  `convert/1` is pure, so `cst_to_sexpr(read(F)) =:= lfe_io(F)` implies
+  `convert(cst_to_sexpr(read(F))) =:= convert(lfe_io(F))` = slice1's `form()`.
+  Accepted. **Hand-off to slice3 (named, not a gap):** 2b proves the cst's
+  *structure* is faithful; slice3 must lower the cst → `form()` **with trivia**,
+  applying convert-style code-vs-data shaping per node while threading each
+  node's lead/trail comments — and must preserve the proven structure (that is
+  slice3's own correctness obligation + gate, not inherited for free).
+- **F2 — `#B` constructor is corpus-scoped (named pre-release gap).** It
+  evaluates the segment kinds the corpus uses (int byte, string bytes, `(V
+  float)` 64-bit) and raises `{unsupported_bitseg,_}` on richer specs (`(size
+  N)`, `(unit N)`, signed, endianness) — honest let-it-crash, and the 739
+  differential confirms the corpus needs no more. **But** a real user file with
+  `#B((X (size 16)))` would crash the reader, so this is a genuine gap for a
+  *shipping* formatter (not an arc2 blocker). Recommend tracking it on the
+  arc3-release must-fix list: the production reader must handle all valid LFE,
+  not only corpus LFE. Re-entry is recorded in the ledger.
+
+### Closure (2b)
+
+CDC accepts slice2b. Both oracles green and soundly constructed; scope clean;
+zero-dep preserved; engine/lowering untouched. The `cst_to_sexpr` interpretation
+is valid; the `#B` corpus-scoping is an honestly-named gap for arc3. slice2 is
+complete — slice3 gets a positioned, comment-bearing `cst()` to render.

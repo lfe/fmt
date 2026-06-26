@@ -1,4 +1,4 @@
-# CC prompt — fmt v0.1.0 · arc1-poc / slice1-resolver
+# CC prompt — fmt v0.5.0 · arc1-poc / slice1-resolver
 
 You are CC. Stand up the **core of a BEAM-native port of Πₑ** (PrettyExpressive,
 Porncharoenwase et al., OOPSLA 2023) — the generic, optimal, expressive pretty
@@ -23,7 +23,7 @@ rendering in this slice** — correctness is checked at the cost/measure level
 
 ## Read first (specification — do not re-derive)
 
-- `docs/planning/v0.1.0/pretty-expressive-port-plan.md` — §2 (algorithm: Σₑ,
+- `docs/planning/v0.5.0/pretty-expressive-port-plan.md` — §2 (algorithm: Σₑ,
   cost factory, measures, measure sets, resolver), §3 (Erlang design, modules),
   §5 (the spike). This is the spec.
 - `docs/research/[2023] Porncharoenwase - A Pretty Expressive Printer.pdf` —

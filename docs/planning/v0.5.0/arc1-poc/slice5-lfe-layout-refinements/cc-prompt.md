@@ -1,4 +1,4 @@
-# CC prompt - fmt v0.1.0 - arc1-poc / slice5-lfe-layout-refinements
+# CC prompt - fmt v0.5.0 - arc1-poc / slice5-lfe-layout-refinements
 
 You are CC. Continue the BEAM-native PrettyExpressive PoC from
 `arc1-poc / slice4-pathological-stress-corpus`.
@@ -14,12 +14,12 @@ and a reproducible `rebar3` verification floor.
 
 ## Read first
 
-- `docs/planning/v0.1.0/pretty-expressive-port-plan.md`
-- `docs/planning/v0.1.0/arc1-poc/running-recommendations.md`
-- `docs/planning/v0.1.0/arc1-poc/slice3-lfe-knowledge-layer/slice-doc.md`
-- `docs/planning/v0.1.0/arc1-poc/slice3-lfe-knowledge-layer/ledger.md`
-- `docs/planning/v0.1.0/arc1-poc/slice4-pathological-stress-corpus/slice-doc.md`
-- `docs/planning/v0.1.0/arc1-poc/slice4-pathological-stress-corpus/ledger.md`
+- `docs/planning/v0.5.0/pretty-expressive-port-plan.md`
+- `docs/planning/v0.5.0/arc1-poc/running-recommendations.md`
+- `docs/planning/v0.5.0/arc1-poc/slice3-lfe-knowledge-layer/slice-doc.md`
+- `docs/planning/v0.5.0/arc1-poc/slice3-lfe-knowledge-layer/ledger.md`
+- `docs/planning/v0.5.0/arc1-poc/slice4-pathological-stress-corpus/slice-doc.md`
+- `docs/planning/v0.5.0/arc1-poc/slice4-pathological-stress-corpus/ledger.md`
 - This slice's `slice-doc.md` and `ledger.md`
 
 Load **collaboration-framework** for ledger discipline. Load

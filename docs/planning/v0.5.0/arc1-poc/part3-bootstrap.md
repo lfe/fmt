@@ -70,16 +70,16 @@ The implementation has moved since the research conversation. Before reasoning
 about next steps, read the live status:
 
 ```
-docs/planning/v0.1.0/arc1-poc/running-recommendations.md          # rolling decisions/findings
-docs/planning/v0.1.0/arc1-poc/slice1-resolver/cc-prompt.md
-docs/planning/v0.1.0/arc1-poc/slice1-resolver/ledger.md           # slice1 closure + evidence
-docs/planning/v0.1.0/arc1-poc/slice1-resolver/cdc-verification.md # independent verification
-docs/planning/v0.1.0/arc1-poc/slice2-render-real-lfe/slice-doc.md
-docs/planning/v0.1.0/arc1-poc/slice2-render-real-lfe/cc-prompt.md
-docs/planning/v0.1.0/arc1-poc/slice2-render-real-lfe/ledger.md
-docs/planning/v0.1.0/arc1-poc/slice3-lfe-knowledge-layer/slice-doc.md
-docs/planning/v0.1.0/arc1-poc/slice3-lfe-knowledge-layer/cc-prompt.md   # CC implementing now
-docs/planning/v0.1.0/arc1-poc/slice3-lfe-knowledge-layer/ledger.md
+docs/planning/v0.5.0/arc1-poc/running-recommendations.md          # rolling decisions/findings
+docs/planning/v0.5.0/arc1-poc/slice1-resolver/cc-prompt.md
+docs/planning/v0.5.0/arc1-poc/slice1-resolver/ledger.md           # slice1 closure + evidence
+docs/planning/v0.5.0/arc1-poc/slice1-resolver/cdc-verification.md # independent verification
+docs/planning/v0.5.0/arc1-poc/slice2-render-real-lfe/slice-doc.md
+docs/planning/v0.5.0/arc1-poc/slice2-render-real-lfe/cc-prompt.md
+docs/planning/v0.5.0/arc1-poc/slice2-render-real-lfe/ledger.md
+docs/planning/v0.5.0/arc1-poc/slice3-lfe-knowledge-layer/slice-doc.md
+docs/planning/v0.5.0/arc1-poc/slice3-lfe-knowledge-layer/cc-prompt.md   # CC implementing now
+docs/planning/v0.5.0/arc1-poc/slice3-lfe-knowledge-layer/ledger.md
 ```
 
 Also check the experiment output (memo bake-off table, linearity series) under
@@ -108,7 +108,7 @@ Decision tree once slice1/2 latency + memo numbers are in:
   > already builds.
 
 - **Either way**, the other levers are catalogued in
-  **`docs/planning/v0.1.0/arc1-poc/optimisation-ideas.md`**: Lever 1 (aligned-only
+  **`docs/planning/v0.5.0/arc1-poc/optimisation-ideas.md`**: Lever 1 (aligned-only
   → free `W³`), Lever 2 (per-form/file parallelism → free cores), Lever 3
   (greedy-first optimal-repair hybrid), the format-server/incremental cache, and
   the per-subproblem-actor *trap* to avoid. Suggested ordering is in that doc.
@@ -128,8 +128,8 @@ Decision tree once slice1/2 latency + memo numbers are in:
 
 - Research paper (the optimised engine): `docs/research/symbolic-pwl-frontier.md`
   (+ section sources in `docs/research/symbolic-pwl-frontier/`).
-- Optimisation menu: `docs/planning/v0.1.0/arc1-poc/optimisation-ideas.md`.
-- Πₑ port plan: `docs/planning/v0.1.0/pretty-expressive-port-plan.md`.
+- Optimisation menu: `docs/planning/v0.5.0/arc1-poc/optimisation-ideas.md`.
+- Πₑ port plan: `docs/planning/v0.5.0/pretty-expressive-port-plan.md`.
 - Original paper: `docs/research/[2023] Porncharoenwase - A Pretty Expressive Printer.pdf`.
 - Term-DAG store design (for the engine + a possible graffeo derived view):
   `erlsci/graffeo/workbench/term-dag-tier-from-fmt.md`.

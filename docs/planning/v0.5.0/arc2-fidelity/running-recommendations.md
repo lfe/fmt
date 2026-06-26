@@ -7,8 +7,8 @@
 > adoption into the arc2 register.
 >
 > Provenance: carried from
-> `docs/planning/v0.1.0/arc1-poc/running-recommendations.md` (the still-open /
-> watch items) and `docs/planning/v0.1.0/arc1-poc/optimisation-ideas.md` (all of
+> `docs/planning/v0.5.0/arc1-poc/running-recommendations.md` (the still-open /
+> watch items) and `docs/planning/v0.5.0/arc1-poc/optimisation-ideas.md` (all of
 > it — forward-looking). The arc1 file retains the *addressed* items as the
 > historical record.
 

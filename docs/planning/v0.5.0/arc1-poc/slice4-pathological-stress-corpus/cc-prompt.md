@@ -1,4 +1,4 @@
-# CC prompt - fmt v0.1.0 - arc1-poc / slice4-pathological-stress-corpus
+# CC prompt - fmt v0.5.0 - arc1-poc / slice4-pathological-stress-corpus
 
 You are CC. Continue the BEAM-native PrettyExpressive PoC from
 `arc1-poc / slice3-lfe-knowledge-layer`.
@@ -14,15 +14,15 @@ timeouts for pathological runs, and a reproducible `rebar3` verification floor.
 
 ## Read first
 
-- `docs/planning/v0.1.0/pretty-expressive-port-plan.md`
-- `docs/planning/v0.1.0/arc1-poc/running-recommendations.md`
-- `docs/planning/v0.1.0/arc1-poc/slice1-resolver/cc-prompt.md`
-- `docs/planning/v0.1.0/arc1-poc/slice1-resolver/ledger.md`
-- `docs/planning/v0.1.0/arc1-poc/slice1-resolver/cdc-verification.md`
-- `docs/planning/v0.1.0/arc1-poc/slice2-render-real-lfe/slice-doc.md`
-- `docs/planning/v0.1.0/arc1-poc/slice2-render-real-lfe/ledger.md`
-- `docs/planning/v0.1.0/arc1-poc/slice3-lfe-knowledge-layer/slice-doc.md`
-- `docs/planning/v0.1.0/arc1-poc/slice3-lfe-knowledge-layer/ledger.md`
+- `docs/planning/v0.5.0/pretty-expressive-port-plan.md`
+- `docs/planning/v0.5.0/arc1-poc/running-recommendations.md`
+- `docs/planning/v0.5.0/arc1-poc/slice1-resolver/cc-prompt.md`
+- `docs/planning/v0.5.0/arc1-poc/slice1-resolver/ledger.md`
+- `docs/planning/v0.5.0/arc1-poc/slice1-resolver/cdc-verification.md`
+- `docs/planning/v0.5.0/arc1-poc/slice2-render-real-lfe/slice-doc.md`
+- `docs/planning/v0.5.0/arc1-poc/slice2-render-real-lfe/ledger.md`
+- `docs/planning/v0.5.0/arc1-poc/slice3-lfe-knowledge-layer/slice-doc.md`
+- `docs/planning/v0.5.0/arc1-poc/slice3-lfe-knowledge-layer/ledger.md`
 - This slice's `slice-doc.md` and `ledger.md`
 
 Load **collaboration-framework** for ledger discipline. Load
