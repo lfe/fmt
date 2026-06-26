@@ -401,11 +401,14 @@ corpus_binaries() ->
     Inline ++ FileBins.
 
 integration_files() ->
-    TestDir = filename:dirname(filename:absname(?FILE)),
-    IntDir = filename:join([TestDir, "..", "_integration"]),
-    AllFiles = filelib:wildcard(filename:join([IntDir, "**", "*.lfe"])),
-    [F || F <- AllFiles,
-          re:run(F, "/_build/", [{capture, none}]) =:= nomatch].
+    %% A7S1 (fmt import): re-pointed off the absent rebar3_lfe `_integration/`
+    %% tree onto the `lfe` test-dep's bundled corpus (examples/ + test/) via
+    %% code:lib_dir/1, so CST discovery exercises real LFE. The `/_build/`
+    %% filter is dropped — the dep corpus lives under _build. Discovery source
+    %% only; the parse/round-trip oracle is unchanged.
+    LfeDir = code:lib_dir(lfe),
+    filelib:wildcard(filename:join([LfeDir, "examples", "*.lfe"])) ++
+        filelib:wildcard(filename:join([LfeDir, "test", "*.lfe"])).
 
 tq_corpus_file() ->
     TestDir = filename:dirname(filename:absname(?FILE)),

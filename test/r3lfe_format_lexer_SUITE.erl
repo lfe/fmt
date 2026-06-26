@@ -410,6 +410,12 @@ data_dir() ->
     filename:join([TestDir, "r3lfe_format_lexer_SUITE_data"]).
 
 integration_lfe_files() ->
-    TestDir = filename:dirname(filename:absname(?FILE)),
-    IntDir = filename:join([TestDir, "..", "_integration"]),
-    filelib:wildcard(filename:join([IntDir, "**", "*.lfe"])).
+    %% A7S1 (fmt import): the rebar3_lfe `_integration/` tree is not part of fmt.
+    %% round_trip_integration_files asserts length > 0, so (unlike the formatter
+    %% sweeps) it would FAIL — not pass hollowly — against the absent dir.
+    %% Re-point at the `lfe` test-dep's bundled corpus (examples/ + test/) via
+    %% code:lib_dir/1 so the round-trip exercises real LFE. Discovery source
+    %% only; the round-trip oracle is unchanged.
+    LfeDir = code:lib_dir(lfe),
+    filelib:wildcard(filename:join([LfeDir, "examples", "*.lfe"])) ++
+        filelib:wildcard(filename:join([LfeDir, "test", "*.lfe"])).
