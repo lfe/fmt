@@ -11,8 +11,15 @@
 
 ## About
 
-**lfmt** is a code formatter for [LFE][lfe] (Lisp Flavoured Erlang). It reads LFE
-source and pretty-prints it into a consistent, canonical layout — preserving
+**lfmt** is written in Erlang (like LFE itself) and is a **general-purpose formatter for the wider BEAM community**. While the first engine (`fezzik`) is intentionally single-language, single-purpose, the forthcoming `pe` and `pc` engines are built around user-supplied
+**formatting-rules files**. Given a rule set, lfmt is intended to format
+*any* text file according to those rules.
+
+All engines are pure-Erlang with **zero runtime dependencies**.
+
+## Usage
+
+The formatter reads source and pretty-prints it into a consistent, canonical layout — preserving
 comments and guaranteeing **idempotence**: formatting already-formatted code
 leaves it unchanged (`format(format(X)) == format(X)`).
 
@@ -27,25 +34,17 @@ planned:
 | `pe`     | planned       | pretty-expressive (optimal-layout) engine      |
 | `pc`     | planned       | pretty-canny engine                            |
 
-Although it begins life formatting LFE, lfmt is written in Erlang by deliberate
-design: the aim is a **general-purpose formatter for the wider BEAM community**.
-The forthcoming `pe` and `pc` engines are built around user-supplied
-**formatting-rules files** — given a rule set, lfmt is intended to format *any*
-text file according to those rules, not only LFE source.
-
-The engine is pure OTP with **zero runtime dependencies**.
-
-## Usage
-
-lfmt is an Erlang/LFE library. Add it as a dependency (rebar3):
+lfmt is an Erlang library add as a dependency (rebar3) in the usual manner:
 
 ```erlang
 {deps, [{lfmt, "~> 0.4"}]}.
 ```
 
+lfmt provides the formatting capability of the LFE rebar3 plugin (`rebar3_lfe`) as of version 0.5.5 of that tool.
+
 ### Formatting
 
-The simplest form uses the default engine (`fezzik`):
+The simplest form uses the default engine (`fezzik`); note that this is the only engine which is LFE-only (understandable, given it is a brute-force formatter, not a general-purpose one):
 
 ```erlang
 {ok, Formatted} = lfmt:format(Source).
