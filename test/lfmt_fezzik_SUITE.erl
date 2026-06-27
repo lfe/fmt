@@ -704,17 +704,29 @@ assert_format(Input, Expected) ->
 
 assert_idempotent(Input) ->
     {ok, Out1IO} = lfmt_fezzik:format(Input),
-    Out1 = iolist_to_binary(Out1IO),
+    Out1 = fmt_output_bin(Out1IO),
     {ok, Out2IO} = lfmt_fezzik:format(Out1),
-    Out2 = iolist_to_binary(Out2IO),
+    Out2 = fmt_output_bin(Out2IO),
     ?assertEqual(Out1, Out2,
                  io_lib:format("idempotency failed for ~200p", [Input])).
+
+%% Flatten formatter output to a UTF-8 binary. The formatter emits codepoints
+%% > 127 for multibyte-UTF-8 sources, so the inline oracles must use
+%% unicode:characters_to_binary (not iolist_to_binary, which mangles them). It
+%% returns binary() on success, or {error,_}/{incomplete,_} on malformed input —
+%% assert success loudly so a bad result fails the test rather than silently
+%% flowing an error tuple into a comparison.
+fmt_output_bin(IO) ->
+    case unicode:characters_to_binary(IO, unicode, utf8) of
+        Bin when is_binary(Bin) -> Bin;
+        Other -> error({formatter_output_not_unicode, Other})
+    end.
 
 %% A7·S5b carve-out: multiset comparison so export sorting does not cause
 %% false negatives. Detects any token add/drop/mutate; order is relaxed.
 assert_token_preservation(Input) ->
     {ok, OutIO} = lfmt_fezzik:format(Input),
-    OutBin = iolist_to_binary(OutIO),
+    OutBin = fmt_output_bin(OutIO),
     SigIn  = lists:sort(sig_pairs(Input)),
     SigOut = lists:sort(sig_pairs(OutBin)),
     ?assertEqual(SigIn, SigOut,
@@ -724,7 +736,9 @@ assert_token_preservation(Input) ->
 %% sort does not cause false negatives. All other ordering is still enforced.
 assert_ast_equiv(Input) ->
     {ok, OutIO} = lfmt_fezzik:format(Input),
-    OutBin = iolist_to_binary(OutIO),
+    OutBin = fmt_output_bin(OutIO),
+    %% Input is a genuine source binary (bytes), so iolist_to_binary is correct
+    %% here — only the formatter *output* flatten needed the unicode fix.
     OrigText = binary_to_list(iolist_to_binary([Input])),
     OutText  = binary_to_list(OutBin),
     case {lfe_io:read_string(OrigText), lfe_io:read_string(OutText)} of
@@ -1077,35 +1091,22 @@ full_corpus() ->
         <<"(defun long-factorial-function\n  ((0 accumulator) accumulator)\n  ((number accumulator) (when (> number 0))\n   (long-factorial-function (- number 1) (* number accumulator))))">>,
         <<"(defun f\n  ((n acc) (when (> n 0)) (f (- n 1) (* n acc)))\n  ((0 acc) acc))">>
     ],
-    %% A7S1 (fmt import): the inline oracle helpers (assert_idempotent,
-    %% assert_token_preservation, assert_ast_equiv) flatten formatter output with
-    %% iolist_to_binary, which cannot faithfully round-trip the > 127 codepoints
-    %% the formatter emits for multibyte-UTF-8 sources (it re-reads as
-    %% invalid_encoding). Restrict the file corpus feeding these inline oracles to
-    %% 7-bit-ASCII files. The two Unicode-bearing files in the dep corpus
-    %% (core-macros.lfe, clj-tests.lfe) are still exercised — by the Unicode-safe
-    %% corpus_sweep_all / conf_wide_sweep, which use unicode:characters_to_binary.
-    %% Discovery source only; the oracle helpers themselves are unchanged. The
-    %% latent iolist_to_binary/unicode mismatch in the inline helpers is a Fezzik
-    %% test-harness issue to be addressed in a later slice, not this import.
+    %% A1S2 (v0.3.0 harness-unicode): the inline oracle helpers now flatten
+    %% formatter output with unicode:characters_to_binary (see fmt_output_bin/1),
+    %% so they round-trip the > 127 codepoints the formatter emits for
+    %% multibyte-UTF-8 sources. The v0.1.0 7-bit-ASCII restriction is therefore
+    %% removed — every corpus file (including core-macros.lfe and clj-tests.lfe)
+    %% now feeds every inline oracle, matching the always-Unicode-safe sweeps.
     FileBins = lists:filtermap(
         fun(F) ->
             case file:read_file(F) of
-                {ok, B} ->
-                    case is_seven_bit_ascii(B) of
-                        true  -> {true, B};
-                        false -> false
-                    end;
+                {ok, B} -> {true, B};
                 _ -> false
             end
         end,
         integration_files() ++ [tq_corpus_file()]
     ),
     Inline ++ FileBins.
-
-%% is_seven_bit_ascii: true iff every byte is < 128 (no multibyte UTF-8).
-is_seven_bit_ascii(Bin) ->
-    lists:all(fun(C) -> C < 128 end, binary_to_list(Bin)).
 
 integration_files() ->
     %% A7S1 (fmt import): the rebar3_lfe `_integration/` tree is not part of fmt,
@@ -1133,7 +1134,7 @@ assert_comment_preservation(Input) ->
     InComments   = [lfmt_fezzik_lexer:text(T)
                     || T <- lfmt_fezzik_cst:comments(InDoc)],
     {ok, OutIO}  = lfmt_fezzik:format(Input),
-    OutBin       = iolist_to_binary(OutIO),
+    OutBin       = fmt_output_bin(OutIO),
     {ok, OutToks} = lfmt_fezzik_lexer:tokens(OutBin),
     {ok, OutDoc}  = lfmt_fezzik_cst:parse(OutToks),
     OutComments   = [lfmt_fezzik_lexer:text(T)
