@@ -71,6 +71,15 @@ on mechanical checks (`grep -rn r3lfe`, the `pe_*` no-touch diff, xref). Load
 
 ## Version History
 
+- **v2.2 — 2026-06-26** (surfaced by **slice 2** close/bubble-up). Recorded that
+  the inline-oracle Unicode fix touched **four** helpers, not three: alongside
+  `assert_idempotent` / `assert_token_preservation` / `assert_ast_equiv`,
+  `assert_comment_preservation` is a fourth `full_corpus`-fed inline oracle with
+  the same `iolist_to_binary`-on-formatter-output bug (it failed the first ct run
+  once the ASCII restriction was lifted). Fixed identically (slice-2 Amendment 1).
+  No change to the slice breakdown or the arc-ledger rows; A1-4 (carried v0.1.0
+  Unicode finding) is now **closed**. Both slices delivered — the arc is ready
+  for close (composition check + `0.3.0` tag) pending CDC verification.
 - **v2.1 — 2026-06-26** (surfaced by **slice 1** close/bubble-up). Recorded a
   one-line exception to the arc's "`pe_*` untouched" claim: the `fmt` → `lfmt`
   app rename forces `src/pe_lfe.erl` `base_rules_path/0` to follow the app name
