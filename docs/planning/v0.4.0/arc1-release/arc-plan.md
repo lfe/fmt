@@ -2,11 +2,13 @@
 
 > The arc that turns the namespaced-but-monolithic Fezzik engine into a
 > **published, depended-upon library**: split the 1869-line renderer into
-> focused modules, publish `lfmt` `0.4.0` to hex.pm, and rewire `rebar3_lfe` to
-> consume it (deleting its now-duplicated local copy). This is the **first
-> buildable, publishable tag** in the line. Project: **v0.4.0**. One arc, three
-> slices (split → publish → integrate) — provisional grouping; we re-assess
-> granularity when we arrive. Master reference:
+> focused modules, **establish the multi-engine public API** (a shared options
+> record + an `lfmt_engine` behaviour + `lfmt:new/1` dispatch), publish `lfmt`
+> `0.4.0` to hex.pm, and rewire `rebar3_lfe` to consume it (deleting its
+> now-duplicated local copy). This is the **first buildable, publishable tag** in
+> the line — and it ships the public API shape the v0.5.0/v0.6.0 engines slot
+> into. Project: **v0.4.0**. One arc, **four** slices (split → engine-api →
+> publish → integrate). Master reference:
 > `workbench/fezzik-migration-plan.md` §6, §7, §8.
 
 ## Base branch (operator constraint — 2026-06-26)
@@ -27,29 +29,34 @@ By the end of v0.3.0, `lfmt` is a clean, namespaced, green project — but the
 renderer is a single 1869-line module and nothing depends on the package yet.
 This arc closes the loop the whole migration was for: a standalone `lfmt` on
 hex that `rebar3_lfe` (and anyone else) can pull in, with the formatter engine
-living in exactly one place. Three distinct capabilities, each independently
-verifiable, hence three slices behind one release banner.
+living in exactly one place — **and a stable multi-engine API surface from the
+very first release**, so the pretty-expressive (v0.5.0) and pretty-canny
+(v0.6.0) engines slot in behind the same `lfmt:new/1` without breaking callers.
+Four distinct capabilities, each independently verifiable, behind one release
+banner: the split (1), the engine API (2), the publish (3), the integration (4).
 
 ## Slice breakdown
 
 | # | Slice | Delivers | Gate |
 |---|-------|----------|------|
 | 1 | **split** | decompose `lfmt_fezzik.erl` into focused modules along the existing section banners (proposal: `lfmt_fezzik` = public API + regime classification + document-level dispatch; `lfmt_fezzik_render` = break-preserving / flat / classified-broken renderers; `lfmt_fezzik_clause` = clause + defform + head-classification; `lfmt_fezzik_data` = cons-dot + map k/v + data-container layout) | **pure refactor** — `rebar3 ct` byte-identical formatter behaviour (idempotence + token-preservation suites green); `rebar3 xref` confirms a clean acyclic layering (`lexer → cst → {data, clause} → render → fezzik`); zero-warning compile; dialyzer clean. Any seam that mutual recursion won't allow is **disclosed and merged**, not forced |
-| 2 | **hex-release** | `lfmt.app.src` `vsn` → `"0.4.0"` + complete hex metadata; `rebar3_hex` wired; `rebar3 hex build` tarball inspected; `rebar3 hex publish` | `lfmt 0.4.0` live on hex.pm; tarball contains `src/` + app.src + LICENSE and **excludes** test/bench/docs cruft; tag `0.4.0` on the release commit; `rebar.config` still `{deps, []}` (zero runtime deps) |
-| 3 | **rebar3-integration** | in `rebar3_lfe`: add `{lfmt, "~> 0.4"}`; rewire `r3lfe_prv_format` to call `lfmt_fezzik:format/1`; **delete** the local `r3lfe_format{ter,_cst,_lexer}.erl` + their three suites + the lexer data dir; bump + release `rebar3_lfe` | `rebar3 ct` green in `rebar3_lfe` — the **provider suite + `test/e2e/`** now exercise the external `lfmt` end-to-end (proving the dependency edge); no `r3lfe_format*` engine code remains; `rebar3_lfe`'s CLAUDE.md safety gates untouched (this is a dep swap, not a wrapper-flag change) |
+| 2 | **engine-api** | the multi-engine public API: a shared options record `#lfmt_opts{engine = fezzik}`, an **`lfmt_engine` behaviour** (`-callback format/2`), `lfmt:new/1` (map → opaque formatter) + `lfmt:format/1,2` dispatching on `engine`, and `lfmt_fezzik` implementing the behaviour. `fezzik` wired; `pe`/`pc` reserved (honest error). | `lfmt:new(#{engine=>fezzik})` then `format/2` produces the same output as `lfmt_fezzik:format/1`; `new(#{engine=>pe})` errors clearly (not silently); `lfmt_fezzik` passes `lfmt_engine` (Dialyzer behaviour check); ct green; **no hollow options** (the record's only field is the real dispatch selector) |
+| 3 | **hex-release** | `lfmt.app.src` `vsn` → `"0.4.0"` + complete hex metadata; `rebar3_hex` wired; `rebar3 hex build` tarball inspected (incl. the slice-2 `lfmt`/`lfmt_engine` + opts hrl); `rebar3 hex publish` | `lfmt 0.4.0` live on hex.pm; tarball contains all `src/` modules + every `.hrl` + app.src + LICENSE and **excludes** test/bench/docs cruft; tag `0.4.0` on the release commit; `rebar.config` still `{deps, []}` (zero runtime deps) |
+| 4 | **rebar3-integration** | in `rebar3_lfe`: add `{lfmt, "~> 0.4"}`; rewire `r3lfe_prv_format` to call the `lfmt` API (`lfmt:format/1` or `lfmt_fezzik:format/1`); **delete** the local `r3lfe_format{ter,_cst,_lexer}.erl` + their three suites + the lexer data dir; bump + release `rebar3_lfe` | `rebar3 ct` green in `rebar3_lfe` — the **provider suite + `test/e2e/`** now exercise the external `lfmt` end-to-end (proving the dependency edge); no `r3lfe_format*` engine code remains; `rebar3_lfe`'s CLAUDE.md safety gates untouched (this is a dep swap, not a wrapper-flag change) |
 
-**Dependency ordering:** slice2 needs slice1 (publish a clean surface, not a
-monolith); slice3 needs `lfmt` resolvable at `~> 0.4` — develop/verify against a
-`{lfmt, {git, …}}` or path dep if useful, but the **closing gate uses the hex
-dep**. slice3 is the only slice that touches a second repo (`rebar3_lfe`); CC
-operates there too.
+**Dependency ordering:** slice 2 (engine-api) builds on slice 1 (it routes to
+the split `lfmt_fezzik`); slice 3 (hex-release) publishes the result of 1+2, so
+its tarball must include the slice-2 modules; slice 4 needs `lfmt` resolvable at
+`~> 0.4` — develop/verify against a `{lfmt, {git, …}}` or path dep if useful, but
+the **closing gate uses the hex dep**. slice 4 is the only slice that touches a
+second repo (`rebar3_lfe`); CC operates there too.
 
 **Carried hygiene (rides in slice 1):** the v0.3.0 follow-up — `conf_wide_sweep`
 flattens with `iolist_to_binary` and so silently *skips* the 2 multibyte files —
 is folded into slice 1 as a **separate, test-only commit** (swap its flatten to
 `fmt_output_bin`). It is kept distinct from the split commit so the split stays a
 *pure src refactor*; it is not its own slice (far less than one slice's worth,
-per the collapse rule). Tracked as arc-ledger row A1-5.
+per the collapse rule). Tracked as arc-ledger row A1-6.
 
 ## The split is a proposal, not a settled boundary (slice1)
 
@@ -77,11 +84,12 @@ it, and the engine is decomposed into focused modules with clean layering.*
 
 | ID | Criterion | Verify | Significance | Origin | Status | Evidence | Notes |
 |----|-----------|--------|--------------|--------|--------|----------|-------|
-| A1-1 | slice 1 (split) closed | ptr: `slice1-split/cdc-verification.md` | correctness | arc-plan | open | | class-(a) |
-| A1-2 | slice 2 (hex-release) closed | ptr: `slice2-hex-release/cdc-verification.md` | correctness | arc-plan | open | | class-(a) |
-| A1-3 | slice 3 (rebar3-integration) closed | ptr: `slice3-rebar3-integration/cdc-verification.md` | correctness | arc-plan | open | | class-(a) |
-| A1-4 | **composes**: `lfmt 0.4.0` resolvable on hex; the split engine is behaviour-identical (full `ct` green) with clean acyclic layering; `rebar3_lfe` formats via the `{lfmt,"~>0.4"}` dep with **no** local `r3lfe_format*` engine left — demonstrable end-to-end | arc-scale demo: hex fetch + `rebar3_lfe` `ct`/`e2e` against the dep + `xref` layering | serious | arc-plan | open | | class-(b); reproduce at arc scale (CI + hex + cross-repo) |
-| A1-5 | carried v0.3.0 `conf_wide_sweep` hygiene closed (disposition = slice 1, separate commit) | ptr: slice1 cdc + v0.3.0 closing-report back-link | polish | bubble-up | open | | class-(c) — closes the v0.3.0 carry-out |
+| A1-1 | slice 1 (split) closed | ptr: `slice1-split/cdc-verification.md` | correctness | arc-plan | done | CDC-accepted (2026-06-26) | class-(a) |
+| A1-2 | slice 2 (engine-api) closed | ptr: `slice2-engine-api/cdc-verification.md` | correctness | arc-plan | open | | class-(a) |
+| A1-3 | slice 3 (hex-release) closed | ptr: `slice3-hex-release/cdc-verification.md` | correctness | arc-plan | open | | class-(a) |
+| A1-4 | slice 4 (rebar3-integration) closed | ptr: `slice4-rebar3-integration/cdc-verification.md` | correctness | arc-plan | open | | class-(a) |
+| A1-5 | **composes**: `lfmt 0.4.0` resolvable on hex; the split engine behaviour-identical (full `ct`) with clean acyclic layering; the **`lfmt:new/1` multi-engine API** dispatches to `lfmt_fezzik` (and reserves `pe`/`pc`); `rebar3_lfe` formats via the `{lfmt,"~>0.4"}` dep with **no** local `r3lfe_format*` engine left — demonstrable end-to-end | arc-scale demo: hex fetch + `lfmt:new/format` + `rebar3_lfe` `ct`/`e2e` against the dep + `xref` layering | serious | arc-plan | open | | class-(b); reproduce at arc scale (CI + hex + cross-repo) |
+| A1-6 | carried v0.3.0 `conf_wide_sweep` hygiene closed (disposition = slice 1, separate commit) | ptr: slice1 cdc + v0.3.0 closing-report back-link | polish | bubble-up | done | closed in slice 1 (commit `46240a5`) | class-(c) — closes the v0.3.0 carry-out |
 
 ## Out of scope → later projects
 
@@ -106,6 +114,17 @@ slice ledgers `A1S<slice>-<row>`.
 
 ## Version History
 
+- **v1.3 — 2026-06-27** (operator direction, before the hex release). **Inserted
+  a new `slice2-engine-api`** — the multi-engine public API (shared `#lfmt_opts{}`
+  record, `lfmt_engine` behaviour, `lfmt:new/1` + `lfmt:format/1,2` dispatch,
+  `lfmt_fezzik` implementing the behaviour) — so the API shape ships in the first
+  release and the v0.5.0/v0.6.0 engines slot in behind it. Renumbered the
+  remaining slices: hex-release **2 → 3**, rebar3-integration **3 → 4**; arc-ledger
+  rows likewise (compose now A1-5, hygiene A1-6). Field name `engine` + behaviour
+  `lfmt_engine` recommended (operator to confirm). The 0.4.0 opts record is
+  **`engine`-only** (the real dispatch selector — no hollow options); `width` etc.
+  are added when an engine consumes them (pe is width-native → likely v0.5.0).
+  Note: v1.2's "Slice 2 must package this module set" now refers to **slice 3**.
 - **v1.2 — 2026-06-27** (surfaced by **slice 1** close/bubble-up). Recorded the
   split's realized shape: the proposed 4-module render/clause/data decomposition
   is **infeasible** (one 23-function mutually-recursive SCC), so slice 1 delivered
