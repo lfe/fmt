@@ -1,4 +1,4 @@
--module(r3lfe_format_lexer_SUITE).
+-module(lfmt_fezzik_lexer_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("stdlib/include/assert.hrl").
@@ -209,80 +209,80 @@ round_trip_integration_files(_Config) ->
 
 classify_char_semicolon(_Config) ->
     %% #\; is a char, NOT a line comment
-    {ok, [T]} = r3lfe_format_lexer:tokens(<<"#\\;">>),
-    ?assertEqual(char, r3lfe_format_lexer:kind(T)),
-    ?assertEqual("#\\;", r3lfe_format_lexer:text(T)).
+    {ok, [T]} = lfmt_fezzik_lexer:tokens(<<"#\\;">>),
+    ?assertEqual(char, lfmt_fezzik_lexer:kind(T)),
+    ?assertEqual("#\\;", lfmt_fezzik_lexer:text(T)).
 
 classify_char_lparen(_Config) ->
     %% #\( is a char, NOT tuple_open
-    {ok, [T]} = r3lfe_format_lexer:tokens(<<"#\\(">>),
-    ?assertEqual(char, r3lfe_format_lexer:kind(T)),
-    ?assertEqual("#\\(", r3lfe_format_lexer:text(T)).
+    {ok, [T]} = lfmt_fezzik_lexer:tokens(<<"#\\(">>),
+    ?assertEqual(char, lfmt_fezzik_lexer:kind(T)),
+    ?assertEqual("#\\(", lfmt_fezzik_lexer:text(T)).
 
 classify_char_hex(_Config) ->
     %% #\x1f42d; is a single char token
-    {ok, [T]} = r3lfe_format_lexer:tokens(<<"#\\x1f42d;">>),
-    ?assertEqual(char, r3lfe_format_lexer:kind(T)),
-    ?assertEqual("#\\x1f42d;", r3lfe_format_lexer:text(T)).
+    {ok, [T]} = lfmt_fezzik_lexer:tokens(<<"#\\x1f42d;">>),
+    ?assertEqual(char, lfmt_fezzik_lexer:kind(T)),
+    ?assertEqual("#\\x1f42d;", lfmt_fezzik_lexer:text(T)).
 
 classify_number_decimal(_Config) ->
-    {ok, [T]} = r3lfe_format_lexer:tokens(<<"123">>),
-    ?assertEqual(number, r3lfe_format_lexer:kind(T)),
-    ?assertEqual("123", r3lfe_format_lexer:text(T)).
+    {ok, [T]} = lfmt_fezzik_lexer:tokens(<<"123">>),
+    ?assertEqual(number, lfmt_fezzik_lexer:kind(T)),
+    ?assertEqual("123", lfmt_fezzik_lexer:text(T)).
 
 classify_symbol_123foo(_Config) ->
     %% 123foo is one symbol, not a number
-    {ok, [T]} = r3lfe_format_lexer:tokens(<<"123foo">>),
-    ?assertEqual(symbol, r3lfe_format_lexer:kind(T)),
-    ?assertEqual("123foo", r3lfe_format_lexer:text(T)).
+    {ok, [T]} = lfmt_fezzik_lexer:tokens(<<"123foo">>),
+    ?assertEqual(symbol, lfmt_fezzik_lexer:kind(T)),
+    ?assertEqual("123foo", lfmt_fezzik_lexer:text(T)).
 
 classify_symbol_float_extra(_Config) ->
     %% 1.23e4extra is a symbol, not a number
-    {ok, [T]} = r3lfe_format_lexer:tokens(<<"1.23e4extra">>),
-    ?assertEqual(symbol, r3lfe_format_lexer:kind(T)).
+    {ok, [T]} = lfmt_fezzik_lexer:tokens(<<"1.23e4extra">>),
+    ?assertEqual(symbol, lfmt_fezzik_lexer:kind(T)).
 
 classify_number_radix_b(_Config) ->
     %% #b101 is a number
-    {ok, [T]} = r3lfe_format_lexer:tokens(<<"#b101">>),
-    ?assertEqual(number, r3lfe_format_lexer:kind(T)),
-    ?assertEqual("#b101", r3lfe_format_lexer:text(T)).
+    {ok, [T]} = lfmt_fezzik_lexer:tokens(<<"#b101">>),
+    ?assertEqual(number, lfmt_fezzik_lexer:kind(T)),
+    ?assertEqual("#b101", lfmt_fezzik_lexer:text(T)).
 
 classify_binary_open(_Config) ->
     %% #b( is binary_open, NOT a number
-    {ok, [Open, Close]} = r3lfe_format_lexer:tokens(<<"#b()">>),
-    ?assertEqual(binary_open, r3lfe_format_lexer:kind(Open)),
-    ?assertEqual("#b(", r3lfe_format_lexer:text(Open)),
-    ?assertEqual(rparen, r3lfe_format_lexer:kind(Close)).
+    {ok, [Open, Close]} = lfmt_fezzik_lexer:tokens(<<"#b()">>),
+    ?assertEqual(binary_open, lfmt_fezzik_lexer:kind(Open)),
+    ?assertEqual("#b(", lfmt_fezzik_lexer:text(Open)),
+    ?assertEqual(rparen, lfmt_fezzik_lexer:kind(Close)).
 
 classify_bstring(_Config) ->
     %% #"x" is a bstring
-    {ok, [T]} = r3lfe_format_lexer:tokens(<<"#\"x\"">>),
-    ?assertEqual(bstring, r3lfe_format_lexer:kind(T)),
-    ?assertEqual("#\"x\"", r3lfe_format_lexer:text(T)).
+    {ok, [T]} = lfmt_fezzik_lexer:tokens(<<"#\"x\"">>),
+    ?assertEqual(bstring, lfmt_fezzik_lexer:kind(T)),
+    ?assertEqual("#\"x\"", lfmt_fezzik_lexer:text(T)).
 
 classify_number_radix_Nr(_Config) ->
     %% #2r1010 is a number
-    {ok, [T]} = r3lfe_format_lexer:tokens(<<"#2r1010">>),
-    ?assertEqual(number, r3lfe_format_lexer:kind(T)),
-    ?assertEqual("#2r1010", r3lfe_format_lexer:text(T)).
+    {ok, [T]} = lfmt_fezzik_lexer:tokens(<<"#2r1010">>),
+    ?assertEqual(number, lfmt_fezzik_lexer:kind(T)),
+    ?assertEqual("#2r1010", lfmt_fezzik_lexer:text(T)).
 
 classify_number_radix_36(_Config) ->
     %% #36rHELLO — all of H,E,L,O are valid base-36 digits (A-Z covers up to base 36)
-    {ok, [T]} = r3lfe_format_lexer:tokens(<<"#36rHELLO">>),
-    ?assertEqual(number, r3lfe_format_lexer:kind(T)),
-    ?assertEqual("#36rHELLO", r3lfe_format_lexer:text(T)).
+    {ok, [T]} = lfmt_fezzik_lexer:tokens(<<"#36rHELLO">>),
+    ?assertEqual(number, lfmt_fezzik_lexer:kind(T)),
+    ?assertEqual("#36rHELLO", lfmt_fezzik_lexer:text(T)).
 
 classify_qsymbol_with_semicolon(_Config) ->
     %% |a;b| is one qsymbol; the ; is NOT a comment inside
-    {ok, [T]} = r3lfe_format_lexer:tokens(<<"|a;b|">>),
-    ?assertEqual(qsymbol, r3lfe_format_lexer:kind(T)),
-    ?assertEqual("|a;b|", r3lfe_format_lexer:text(T)).
+    {ok, [T]} = lfmt_fezzik_lexer:tokens(<<"|a;b|">>),
+    ?assertEqual(qsymbol, lfmt_fezzik_lexer:kind(T)),
+    ?assertEqual("|a;b|", lfmt_fezzik_lexer:text(T)).
 
 classify_qsymbol_escaped_bar(_Config) ->
     %% |a\|b| is one qsymbol with an escaped bar inside
-    {ok, [T]} = r3lfe_format_lexer:tokens(<<"|a\\|b|">>),
-    ?assertEqual(qsymbol, r3lfe_format_lexer:kind(T)),
-    ?assertEqual("|a\\|b|", r3lfe_format_lexer:text(T)).
+    {ok, [T]} = lfmt_fezzik_lexer:tokens(<<"|a\\|b|">>),
+    ?assertEqual(qsymbol, lfmt_fezzik_lexer:kind(T)),
+    ?assertEqual("|a\\|b|", lfmt_fezzik_lexer:text(T)).
 
 classify_tqstring_multiline(_Config) ->
     %% A valid multi-line tqstring:
@@ -290,79 +290,79 @@ classify_tqstring_multiline(_Config) ->
     %%   - content line containing """ and #| (both treated as literal content)
     %%   - closing """ alone on its line (blank line before it)
     Input = <<"\"\"\"\nhas \"\"\" and #| inside\n\"\"\"">>,
-    {ok, Tokens} = r3lfe_format_lexer:tokens(Input),
+    {ok, Tokens} = lfmt_fezzik_lexer:tokens(Input),
     ?assertMatch([_], Tokens),
     [T] = Tokens,
-    ?assertEqual(tqstring, r3lfe_format_lexer:kind(T)),
+    ?assertEqual(tqstring, lfmt_fezzik_lexer:kind(T)),
     ?assertEqual("\"\"\"\nhas \"\"\" and #| inside\n\"\"\"",
-                 r3lfe_format_lexer:text(T)),
+                 lfmt_fezzik_lexer:text(T)),
     assert_round_trip(Input).
 
 classify_tqbstring_multiline(_Config) ->
     %% Same shape for #"""...""" => tqbstring
     Input = <<"#\"\"\"\nhas \"\"\" and #| inside\n\"\"\"">>,
-    {ok, Tokens} = r3lfe_format_lexer:tokens(Input),
+    {ok, Tokens} = lfmt_fezzik_lexer:tokens(Input),
     ?assertMatch([_], Tokens),
     [T] = Tokens,
-    ?assertEqual(tqbstring, r3lfe_format_lexer:kind(T)),
+    ?assertEqual(tqbstring, lfmt_fezzik_lexer:kind(T)),
     ?assertEqual("#\"\"\"\nhas \"\"\" and #| inside\n\"\"\"",
-                 r3lfe_format_lexer:text(T)),
+                 lfmt_fezzik_lexer:text(T)),
     assert_round_trip(Input).
 
 classify_line_comment_newline(_Config) ->
     %% ";; comment\n" => line_comment then newline; comment text excludes \n
-    {ok, [Comment, Nl]} = r3lfe_format_lexer:tokens(<<";; comment\n">>),
-    ?assertEqual(line_comment, r3lfe_format_lexer:kind(Comment)),
-    ?assertEqual(";; comment", r3lfe_format_lexer:text(Comment)),
-    ?assertEqual(newline, r3lfe_format_lexer:kind(Nl)),
-    ?assertEqual("\n", r3lfe_format_lexer:text(Nl)).
+    {ok, [Comment, Nl]} = lfmt_fezzik_lexer:tokens(<<";; comment\n">>),
+    ?assertEqual(line_comment, lfmt_fezzik_lexer:kind(Comment)),
+    ?assertEqual(";; comment", lfmt_fezzik_lexer:text(Comment)),
+    ?assertEqual(newline, lfmt_fezzik_lexer:kind(Nl)),
+    ?assertEqual("\n", lfmt_fezzik_lexer:text(Nl)).
 
 classify_unquote_splicing(_Config) ->
     %% ,@x => unquote_splicing + symbol
-    {ok, [Splice, Sym]} = r3lfe_format_lexer:tokens(<<",@x">>),
-    ?assertEqual(unquote_splicing, r3lfe_format_lexer:kind(Splice)),
-    ?assertEqual(",@", r3lfe_format_lexer:text(Splice)),
-    ?assertEqual(symbol, r3lfe_format_lexer:kind(Sym)),
-    ?assertEqual("x", r3lfe_format_lexer:text(Sym)).
+    {ok, [Splice, Sym]} = lfmt_fezzik_lexer:tokens(<<",@x">>),
+    ?assertEqual(unquote_splicing, lfmt_fezzik_lexer:kind(Splice)),
+    ?assertEqual(",@", lfmt_fezzik_lexer:text(Splice)),
+    ?assertEqual(symbol, lfmt_fezzik_lexer:kind(Sym)),
+    ?assertEqual("x", lfmt_fezzik_lexer:text(Sym)).
 
 classify_unquote(_Config) ->
     %% ,x => unquote + symbol
-    {ok, [Uq, Sym]} = r3lfe_format_lexer:tokens(<<",x">>),
-    ?assertEqual(unquote, r3lfe_format_lexer:kind(Uq)),
-    ?assertEqual(",", r3lfe_format_lexer:text(Uq)),
-    ?assertEqual(symbol, r3lfe_format_lexer:kind(Sym)).
+    {ok, [Uq, Sym]} = lfmt_fezzik_lexer:tokens(<<",x">>),
+    ?assertEqual(unquote, lfmt_fezzik_lexer:kind(Uq)),
+    ?assertEqual(",", lfmt_fezzik_lexer:text(Uq)),
+    ?assertEqual(symbol, lfmt_fezzik_lexer:kind(Sym)).
 
 classify_fun_ref(_Config) ->
     %% #'foo/2 => fun_ref (text "#'") + symbol (text "foo/2")
-    {ok, [Ref, Sym]} = r3lfe_format_lexer:tokens(<<"#'foo/2">>),
-    ?assertEqual(fun_ref, r3lfe_format_lexer:kind(Ref)),
-    ?assertEqual("#'", r3lfe_format_lexer:text(Ref)),
-    ?assertEqual(symbol, r3lfe_format_lexer:kind(Sym)),
-    ?assertEqual("foo/2", r3lfe_format_lexer:text(Sym)).
+    {ok, [Ref, Sym]} = lfmt_fezzik_lexer:tokens(<<"#'foo/2">>),
+    ?assertEqual(fun_ref, lfmt_fezzik_lexer:kind(Ref)),
+    ?assertEqual("#'", lfmt_fezzik_lexer:text(Ref)),
+    ?assertEqual(symbol, lfmt_fezzik_lexer:kind(Sym)),
+    ?assertEqual("foo/2", lfmt_fezzik_lexer:text(Sym)).
 
 classify_dot_standalone(_Config) ->
     %% A run of exactly "." is the cons-dot operator; emits distinct kind `dot`.
-    {ok, [T]} = r3lfe_format_lexer:tokens(<<".">>),
-    ?assertEqual(dot, r3lfe_format_lexer:kind(T)),
-    ?assertEqual(".", r3lfe_format_lexer:text(T)),
+    {ok, [T]} = lfmt_fezzik_lexer:tokens(<<".">>),
+    ?assertEqual(dot, lfmt_fezzik_lexer:kind(T)),
+    ?assertEqual(".", lfmt_fezzik_lexer:text(T)),
     assert_round_trip(<<".">>).
 
 classify_dot_in_symbol_run(_Config) ->
     %% a.b.c — dot is a valid symbol char inside a longer run; one symbol token.
-    {ok, [T]} = r3lfe_format_lexer:tokens(<<"a.b.c">>),
-    ?assertEqual(symbol, r3lfe_format_lexer:kind(T)),
-    ?assertEqual("a.b.c", r3lfe_format_lexer:text(T)).
+    {ok, [T]} = lfmt_fezzik_lexer:tokens(<<"a.b.c">>),
+    ?assertEqual(symbol, lfmt_fezzik_lexer:kind(T)),
+    ?assertEqual("a.b.c", lfmt_fezzik_lexer:text(T)).
 
 classify_dot_ellipsis(_Config) ->
     %% ... is three dots in a row — still one symbol token.
-    {ok, [T]} = r3lfe_format_lexer:tokens(<<"...">>),
-    ?assertEqual(symbol, r3lfe_format_lexer:kind(T)),
-    ?assertEqual("...", r3lfe_format_lexer:text(T)).
+    {ok, [T]} = lfmt_fezzik_lexer:tokens(<<"...">>),
+    ?assertEqual(symbol, lfmt_fezzik_lexer:kind(T)),
+    ?assertEqual("...", lfmt_fezzik_lexer:text(T)).
 
 classify_dot_in_list(_Config) ->
     %% (a . b) => lparen, symbol, ws, dot, ws, symbol, rparen
-    {ok, Tokens} = r3lfe_format_lexer:tokens(<<"(a . b)">>),
-    Kinds = [r3lfe_format_lexer:kind(T) || T <- Tokens],
+    {ok, Tokens} = lfmt_fezzik_lexer:tokens(<<"(a . b)">>),
+    Kinds = [lfmt_fezzik_lexer:kind(T) || T <- Tokens],
     ?assertEqual([lparen, symbol, whitespace, dot, whitespace, symbol, rparen], Kinds),
     assert_round_trip(<<"(a . b)">>).
 
@@ -371,24 +371,24 @@ classify_dot_in_list(_Config) ->
 %%====================================================================
 
 error_unterminated_block_comment(_Config) ->
-    Result = r3lfe_format_lexer:tokens(<<"#| no closing">>),
+    Result = lfmt_fezzik_lexer:tokens(<<"#| no closing">>),
     ?assertMatch({error, {unterminated_block_comment, _}}, Result).
 
 error_unterminated_string(_Config) ->
-    Result = r3lfe_format_lexer:tokens(<<"\"no closing">>),
+    Result = lfmt_fezzik_lexer:tokens(<<"\"no closing">>),
     ?assertMatch({error, {unterminated_string, _}}, Result).
 
 error_unterminated_qsymbol(_Config) ->
-    Result = r3lfe_format_lexer:tokens(<<"|no closing">>),
+    Result = lfmt_fezzik_lexer:tokens(<<"|no closing">>),
     ?assertMatch({error, {unterminated_qsymbol, _}}, Result).
 
 error_bad_tq_string(_Config) ->
     %% Non-space content after the opening """ => bad_tq_string
     ?assertMatch({error, {bad_tq_string, _}},
-                 r3lfe_format_lexer:tokens(<<"\"\"\"content-on-open-line\n\"\"\"">>)),
+                 lfmt_fezzik_lexer:tokens(<<"\"\"\"content-on-open-line\n\"\"\"">>)),
     %% Spaces then non-space before \n => also bad_tq_string
     ?assertMatch({error, {bad_tq_string, _}},
-                 r3lfe_format_lexer:tokens(<<"\"\"\"   bad\n\"\"\"">>)).
+                 lfmt_fezzik_lexer:tokens(<<"\"\"\"   bad\n\"\"\"">>)).
 
 %%====================================================================
 %% Helpers
@@ -398,16 +398,16 @@ assert_round_trip(Bin) ->
     assert_round_trip(Bin, <<"(inline)">>).
 
 assert_round_trip(Bin, Label) ->
-    {ok, Ts} = r3lfe_format_lexer:tokens(Bin),
+    {ok, Ts} = lfmt_fezzik_lexer:tokens(Bin),
     Reconstructed = unicode:characters_to_binary(
-        r3lfe_format_lexer:to_iolist(Ts), utf8
+        lfmt_fezzik_lexer:to_iolist(Ts), utf8
     ),
     ?assertEqual(Bin, Reconstructed,
                  io_lib:format("round-trip failed for ~s", [Label])).
 
 data_dir() ->
     TestDir = filename:dirname(filename:absname(?FILE)),
-    filename:join([TestDir, "r3lfe_format_lexer_SUITE_data"]).
+    filename:join([TestDir, "lfmt_fezzik_lexer_SUITE_data"]).
 
 integration_lfe_files() ->
     %% A7S1 (fmt import): the rebar3_lfe `_integration/` tree is not part of fmt.

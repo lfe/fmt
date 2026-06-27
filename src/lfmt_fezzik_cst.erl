@@ -3,7 +3,7 @@
 %%%%
 %%%% Note: Erlang reserves node/0 and document/0 as built-in or common names,
 %%%% so the exported opaque types are cst_node/0 and cst_document/0.
--module(r3lfe_format_cst).
+-module(lfmt_fezzik_cst).
 
 -export([parse/1,
          significant_tokens/1, comments/1,
@@ -14,7 +14,7 @@
 
 -export_type([cst_node/0, cst_document/0, node_type/0, trivia/0]).
 
--type token() :: r3lfe_format_lexer:token().
+-type token() :: lfmt_fezzik_lexer:token().
 
 -type trivia() :: {comment, token()} | blank.
 
@@ -55,7 +55,7 @@ parse(Tokens) ->
         {ok, _Nodes, {_, _}, _Dangling, _} ->
             {error, {unexpected_dot, 0}};
         {ok, _Nodes, _DotInfo, _Dangling, [Tok | _]} ->
-            {error, {unbalanced, eof, r3lfe_format_lexer:line(Tok)}};
+            {error, {unbalanced, eof, lfmt_fezzik_lexer:line(Tok)}};
         {error, _} = Err ->
             Err
     end.
@@ -131,7 +131,7 @@ document_dangling(#document{dangling = D}) -> D.
 parse_seq_loop([], _CloserKind, Pending, _NlBefore, Nodes) ->
     {ok, lists:reverse(Nodes), none, Pending, []};
 parse_seq_loop([Tok | Rest], CloserKind, Pending, NlBefore, Nodes) ->
-    Kind = r3lfe_format_lexer:kind(Tok),
+    Kind = lfmt_fezzik_lexer:kind(Tok),
     case Kind of
         whitespace ->
             parse_seq_loop(Rest, CloserKind, Pending, NlBefore, Nodes);
@@ -145,12 +145,12 @@ parse_seq_loop([Tok | Rest], CloserKind, Pending, NlBefore, Nodes) ->
         rparen ->
             case CloserKind of
                 rparen -> {ok, lists:reverse(Nodes), none, Pending, [Tok | Rest]};
-                _      -> {error, {unbalanced, CloserKind, r3lfe_format_lexer:line(Tok)}}
+                _      -> {error, {unbalanced, CloserKind, lfmt_fezzik_lexer:line(Tok)}}
             end;
         rbracket ->
             case CloserKind of
                 rbracket -> {ok, lists:reverse(Nodes), none, Pending, [Tok | Rest]};
-                _        -> {error, {unbalanced, CloserKind, r3lfe_format_lexer:line(Tok)}}
+                _        -> {error, {unbalanced, CloserKind, lfmt_fezzik_lexer:line(Tok)}}
             end;
         dot when CloserKind =/= eof ->
             %% Cons-dot inside a container: the next node is the improper tail.
@@ -160,7 +160,7 @@ parse_seq_loop([Tok | Rest], CloserKind, Pending, NlBefore, Nodes) ->
                 {error, _} = Err -> Err
             end;
         dot ->
-            {error, {unexpected_dot, r3lfe_format_lexer:line(Tok)}};
+            {error, {unexpected_dot, lfmt_fezzik_lexer:line(Tok)}};
         K when K =:= lparen; K =:= lbracket; K =:= tuple_open;
                K =:= map_open; K =:= binary_open; K =:= eval_open ->
             case parse_container(Tok, K, Rest, Pending, NlBefore) of
@@ -204,7 +204,7 @@ parse_seq_loop([Tok | Rest], CloserKind, Pending, NlBefore, Nodes) ->
 parse_one_node([], _Pending, _NlBefore) ->
     {error, {missing_inner_node, 0}};
 parse_one_node([Tok | Rest], Pending, NlBefore) ->
-    Kind = r3lfe_format_lexer:kind(Tok),
+    Kind = lfmt_fezzik_lexer:kind(Tok),
     case Kind of
         whitespace ->
             parse_one_node(Rest, Pending, NlBefore);
@@ -235,7 +235,7 @@ parse_one_node([Tok | Rest], Pending, NlBefore) ->
                 {error, _} = Err -> Err
             end;
         K when K =:= rparen; K =:= rbracket ->
-            {error, {missing_inner_node, r3lfe_format_lexer:line(Tok)}};
+            {error, {missing_inner_node, lfmt_fezzik_lexer:line(Tok)}};
         _ ->
             LNode = #node{type = leaf_type(Kind), open = Tok,
                           close = undefined, prefix = undefined,
@@ -266,7 +266,7 @@ parse_container(OpenerTok, OpenerKind, Rest, Leading, NlBefore) ->
                           dot_token = DotTok},
             {ok, CNode, Rest2};
         {ok, _Children, _DotInfo, _Dangling, []} ->
-            {error, {unbalanced, CloserKind, r3lfe_format_lexer:line(OpenerTok)}};
+            {error, {unbalanced, CloserKind, lfmt_fezzik_lexer:line(OpenerTok)}};
         {error, _} = Err ->
             Err
     end.
@@ -285,7 +285,7 @@ container_type(eval_open)   -> {eval,   rparen}.
 %% try_attach_trailing: skip whitespace (not newlines); if next is a comment,
 %% attach it as the node's single trailing trivia and consume it.
 try_attach_trailing(ANode, [Tok | Rest]) ->
-    case r3lfe_format_lexer:kind(Tok) of
+    case lfmt_fezzik_lexer:kind(Tok) of
         whitespace ->
             try_attach_trailing(ANode, Rest);
         K when K =:= line_comment; K =:= block_comment ->
@@ -304,7 +304,7 @@ try_attach_trailing(ANode, []) ->
 %% Consumes further newlines and interleaved whitespace. Appends a single
 %% `blank` to Pending if total newline count >= 2.
 consume_newlines_inner([Tok | Rest], Pending, Count) ->
-    case r3lfe_format_lexer:kind(Tok) of
+    case lfmt_fezzik_lexer:kind(Tok) of
         newline    -> consume_newlines_inner(Rest, Pending, Count + 1);
         whitespace -> consume_newlines_inner(Rest, Pending, Count);
         _          -> {append_blank_if(Count >= 2, Pending), [Tok | Rest]}
