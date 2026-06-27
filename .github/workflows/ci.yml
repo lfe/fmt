@@ -40,15 +40,15 @@ jobs:
     - name: Check rebar3 Version
       run: DEBUG=1 rebar3 --version
     - name: Compile
-      run: rebar3 compile
+      run: make compile
     - name: Xref Checks
-      run: rebar3 xref
+      run: make xref
     - name: Proper Tests
-      run: rebar3 as test do compile, proper --regressions
+      run: make proper
     - name: Common Test
-      run: rebar3 ct
+      run: make ct
     - name: Run Unit Tests
-      run: rebar3 as test eunit
+      run: make eunit
     # Coverage gate is an explicit arc deferral (running-recommendations A1-R005);
     # wire `--min_coverage` once the coverage slice lands.
     # - name: Test Coverage
@@ -76,14 +76,13 @@ jobs:
         restore-keys: |
           dialyzer-plt-otp28-
     - name: Dialyzer
-      run: rebar3 dialyzer
+      run: make dialyzer
 
   oracle-rust:
     name: Rust oracle (fmt + clippy + test)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: test/oracle
+    # No `working-directory` default: the `make oracle-*` targets cd into
+    # test/oracle themselves, so they run from the repo root.
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
@@ -93,13 +92,13 @@ jobs:
       with:
         workspaces: test/oracle
     - name: Format check
-      run: cargo fmt --check
+      run: make oracle-fmt
     - name: Clippy (deny warnings)
-      run: cargo clippy --all-targets --locked -- -D warnings
+      run: make oracle-clippy
     - name: Build (release)
-      run: cargo build --release --locked
+      run: make oracle-build
     - name: Test
-      run: cargo test --locked
+      run: make oracle-test
 
   differential-oracle:
     name: mjl differential oracle (cross-engine)
@@ -114,13 +113,9 @@ jobs:
     - uses: Swatinem/rust-cache@v2
       with:
         workspaces: test/oracle
-    - name: Build the mjl oracle binary
-      run: cargo build --release --locked
-      working-directory: test/oracle
-    - name: Compile (test profile)
-      run: rebar3 as test compile
-    # Renders random documents through both our engine and the pinned mjl
-    # reference and asserts reported-cost equality over a width sweep; exits
-    # non-zero on any divergence (or a missing binary).
+    # `make diff-oracle` builds the mjl reference binary, compiles the test
+    # profile, then renders random documents through both our engine and the
+    # pinned mjl reference and asserts reported-cost equality over a width
+    # sweep; exits non-zero on any divergence (or a missing binary).
     - name: Run differential oracle
-      run: escript bench/pe_oracle 200
+      run: make diff-oracle
