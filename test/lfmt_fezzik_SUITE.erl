@@ -1,4 +1,4 @@
--module(r3lfe_formatter_SUITE).
+-module(lfmt_fezzik_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("stdlib/include/assert.hrl").
@@ -698,23 +698,35 @@ flat_corpus() ->
     ].
 
 assert_format(Input, Expected) ->
-    {ok, OutIO} = r3lfe_formatter:format(Input),
+    {ok, OutIO} = lfmt_fezzik:format(Input),
     ?assertEqual(Expected, iolist_to_binary(OutIO),
                  io_lib:format("format(~p)", [Input])).
 
 assert_idempotent(Input) ->
-    {ok, Out1IO} = r3lfe_formatter:format(Input),
-    Out1 = iolist_to_binary(Out1IO),
-    {ok, Out2IO} = r3lfe_formatter:format(Out1),
-    Out2 = iolist_to_binary(Out2IO),
+    {ok, Out1IO} = lfmt_fezzik:format(Input),
+    Out1 = fmt_output_bin(Out1IO),
+    {ok, Out2IO} = lfmt_fezzik:format(Out1),
+    Out2 = fmt_output_bin(Out2IO),
     ?assertEqual(Out1, Out2,
                  io_lib:format("idempotency failed for ~200p", [Input])).
+
+%% Flatten formatter output to a UTF-8 binary. The formatter emits codepoints
+%% > 127 for multibyte-UTF-8 sources, so the inline oracles must use
+%% unicode:characters_to_binary (not iolist_to_binary, which mangles them). It
+%% returns binary() on success, or {error,_}/{incomplete,_} on malformed input —
+%% assert success loudly so a bad result fails the test rather than silently
+%% flowing an error tuple into a comparison.
+fmt_output_bin(IO) ->
+    case unicode:characters_to_binary(IO, unicode, utf8) of
+        Bin when is_binary(Bin) -> Bin;
+        Other -> error({formatter_output_not_unicode, Other})
+    end.
 
 %% A7·S5b carve-out: multiset comparison so export sorting does not cause
 %% false negatives. Detects any token add/drop/mutate; order is relaxed.
 assert_token_preservation(Input) ->
-    {ok, OutIO} = r3lfe_formatter:format(Input),
-    OutBin = iolist_to_binary(OutIO),
+    {ok, OutIO} = lfmt_fezzik:format(Input),
+    OutBin = fmt_output_bin(OutIO),
     SigIn  = lists:sort(sig_pairs(Input)),
     SigOut = lists:sort(sig_pairs(OutBin)),
     ?assertEqual(SigIn, SigOut,
@@ -723,8 +735,10 @@ assert_token_preservation(Input) ->
 %% A7·S5b carve-out: normalize export entry order before comparison so the
 %% sort does not cause false negatives. All other ordering is still enforced.
 assert_ast_equiv(Input) ->
-    {ok, OutIO} = r3lfe_formatter:format(Input),
-    OutBin = iolist_to_binary(OutIO),
+    {ok, OutIO} = lfmt_fezzik:format(Input),
+    OutBin = fmt_output_bin(OutIO),
+    %% Input is a genuine source binary (bytes), so iolist_to_binary is correct
+    %% here — only the formatter *output* flatten needed the unicode fix.
     OrigText = binary_to_list(iolist_to_binary([Input])),
     OutText  = binary_to_list(OutBin),
     case {lfe_io:read_string(OrigText), lfe_io:read_string(OutText)} of
@@ -790,11 +804,11 @@ normalize_import_clause(Clause) ->
 %% the comparison pass despite real token loss. Bypassing parse makes any drop
 %% in the formatter output immediately visible.
 sig_pairs(Bin) ->
-    {ok, Toks} = r3lfe_format_lexer:tokens(Bin),
+    {ok, Toks} = lfmt_fezzik_lexer:tokens(Bin),
     Trivia = [whitespace, newline, line_comment, block_comment],
-    [{r3lfe_format_lexer:kind(T), r3lfe_format_lexer:text(T)}
+    [{lfmt_fezzik_lexer:kind(T), lfmt_fezzik_lexer:text(T)}
      || T <- Toks,
-        not lists:member(r3lfe_format_lexer:kind(T), Trivia)].
+        not lists:member(lfmt_fezzik_lexer:kind(T), Trivia)].
 
 %%====================================================================
 %% breaking group
@@ -841,7 +855,7 @@ breaking_tqstring_verbatim(_Config) ->
     %% A tqstring in a container: the tqstring is never flat (infinity width),
     %% so the container must break. The tqstring text is emitted verbatim.
     Input = <<"\"\"\"\nhello\n\"\"\"">>,
-    {ok, OutIO} = r3lfe_formatter:format(Input),
+    {ok, OutIO} = lfmt_fezzik:format(Input),
     Out = iolist_to_binary(OutIO),
     %% The tqstring token text is verbatim; top-level gets \n appended.
     ?assertEqual(<<"\"\"\"\nhello\n\"\"\"\n">>, Out),
@@ -872,7 +886,7 @@ breaking_corpus() ->
 comment_leading(_Config) ->
     %% Leading own-line comment before a list form
     Src = <<";;; section\n(defun f () ok)">>,
-    {ok, OutIO} = r3lfe_formatter:format(Src),
+    {ok, OutIO} = lfmt_fezzik:format(Src),
     Out = iolist_to_binary(OutIO),
     ?assertEqual(<<";;; section\n(defun f () ok)\n">>, Out),
     assert_idempotent(Src).
@@ -880,7 +894,7 @@ comment_leading(_Config) ->
 comment_trailing(_Config) ->
     %% Trailing comment on same line as a form
     Src = <<"(foo bar) ; note">>,
-    {ok, OutIO} = r3lfe_formatter:format(Src),
+    {ok, OutIO} = lfmt_fezzik:format(Src),
     Out = iolist_to_binary(OutIO),
     ?assertEqual(<<"(foo bar) ; note\n">>, Out),
     assert_idempotent(Src).
@@ -889,7 +903,7 @@ comment_dangling(_Config) ->
     %% Dangling comment before closing paren: close on its own line at
     %% content indent (A7·S4b), not de-indented to the form's open column.
     Src = <<"(a\n  ;; c\n  )">>,
-    {ok, OutIO} = r3lfe_formatter:format(Src),
+    {ok, OutIO} = lfmt_fezzik:format(Src),
     Out = iolist_to_binary(OutIO),
     ?assertEqual(<<"(a\n  ;; c\n  )\n">>, Out),
     assert_idempotent(Src).
@@ -904,7 +918,7 @@ comment_blank_between(_Config) ->
 comment_block_inside(_Config) ->
     %% Block comment inside a form, on its own line
     Src = <<"(foo\n  #| block |#\n  bar)">>,
-    {ok, OutIO} = r3lfe_formatter:format(Src),
+    {ok, OutIO} = lfmt_fezzik:format(Src),
     Out = iolist_to_binary(OutIO),
     ?assertEqual(<<"(foo\n  #| block |#\n  bar)\n">>, Out),
     assert_idempotent(Src).
@@ -932,7 +946,7 @@ comment_head_leading_blank_only(_Config) ->
     %% Two \n are needed for alpha to get leading=[blank]; single \n is structural.
     %% Updated from A3 (+2 hang) for A4 funcall rule.
     Src = <<"(\n\nalpha beta)">>,
-    {ok, IO1} = r3lfe_formatter:format(Src),
+    {ok, IO1} = lfmt_fezzik:format(Src),
     Out1 = iolist_to_binary(IO1),
     %% First pass: alpha's blank forces break; funcall puts beta on head line → flat
     ?assertEqual(<<"(alpha beta)\n">>, Out1),
@@ -954,7 +968,7 @@ edge_comment_only(_Config) ->
 
 edge_crlf_normalised(_Config) ->
     %% CRLF → LF: A1 lexes \r as whitespace (dropped by CST).
-    {ok, OutIO} = r3lfe_formatter:format(<<"foo\r\nbar">>),
+    {ok, OutIO} = lfmt_fezzik:format(<<"foo\r\nbar">>),
     Out = iolist_to_binary(OutIO),
     ?assertEqual(<<"foo\nbar\n">>, Out).
 
@@ -970,7 +984,7 @@ edge_wide_with_comment(_Config) ->
     %% Updated from A3 (+2 hang) for A4 funcall rule.
     Xs = list_to_binary(lists:duplicate(71, $X)),
     Src = <<"(foo ", Xs/binary, " bar) ; note">>,
-    {ok, OutIO} = r3lfe_formatter:format(Src),
+    {ok, OutIO} = lfmt_fezzik:format(Src),
     Out = iolist_to_binary(OutIO),
     Expected = <<"(foo ", Xs/binary, "\n     bar) ; note\n">>,
     ?assertEqual(Expected, Out),
@@ -1077,35 +1091,22 @@ full_corpus() ->
         <<"(defun long-factorial-function\n  ((0 accumulator) accumulator)\n  ((number accumulator) (when (> number 0))\n   (long-factorial-function (- number 1) (* number accumulator))))">>,
         <<"(defun f\n  ((n acc) (when (> n 0)) (f (- n 1) (* n acc)))\n  ((0 acc) acc))">>
     ],
-    %% A7S1 (fmt import): the inline oracle helpers (assert_idempotent,
-    %% assert_token_preservation, assert_ast_equiv) flatten formatter output with
-    %% iolist_to_binary, which cannot faithfully round-trip the > 127 codepoints
-    %% the formatter emits for multibyte-UTF-8 sources (it re-reads as
-    %% invalid_encoding). Restrict the file corpus feeding these inline oracles to
-    %% 7-bit-ASCII files. The two Unicode-bearing files in the dep corpus
-    %% (core-macros.lfe, clj-tests.lfe) are still exercised — by the Unicode-safe
-    %% corpus_sweep_all / conf_wide_sweep, which use unicode:characters_to_binary.
-    %% Discovery source only; the oracle helpers themselves are unchanged. The
-    %% latent iolist_to_binary/unicode mismatch in the inline helpers is a Fezzik
-    %% test-harness issue to be addressed in a later slice, not this import.
+    %% A1S2 (v0.3.0 harness-unicode): the inline oracle helpers now flatten
+    %% formatter output with unicode:characters_to_binary (see fmt_output_bin/1),
+    %% so they round-trip the > 127 codepoints the formatter emits for
+    %% multibyte-UTF-8 sources. The v0.1.0 7-bit-ASCII restriction is therefore
+    %% removed — every corpus file (including core-macros.lfe and clj-tests.lfe)
+    %% now feeds every inline oracle, matching the always-Unicode-safe sweeps.
     FileBins = lists:filtermap(
         fun(F) ->
             case file:read_file(F) of
-                {ok, B} ->
-                    case is_seven_bit_ascii(B) of
-                        true  -> {true, B};
-                        false -> false
-                    end;
+                {ok, B} -> {true, B};
                 _ -> false
             end
         end,
         integration_files() ++ [tq_corpus_file()]
     ),
     Inline ++ FileBins.
-
-%% is_seven_bit_ascii: true iff every byte is < 128 (no multibyte UTF-8).
-is_seven_bit_ascii(Bin) ->
-    lists:all(fun(C) -> C < 128 end, binary_to_list(Bin)).
 
 integration_files() ->
     %% A7S1 (fmt import): the rebar3_lfe `_integration/` tree is not part of fmt,
@@ -1121,23 +1122,23 @@ integration_files() ->
 
 tq_corpus_file() ->
     TestDir = filename:dirname(filename:absname(?FILE)),
-    filename:join([TestDir, "r3lfe_format_lexer_SUITE_data", "tq_corpus.lfe"]).
+    filename:join([TestDir, "lfmt_fezzik_lexer_SUITE_data", "tq_corpus.lfe"]).
 
 %%====================================================================
 %% Shared assertion helpers (comment-preservation added)
 %%====================================================================
 
 assert_comment_preservation(Input) ->
-    {ok, InToks} = r3lfe_format_lexer:tokens(Input),
-    {ok, InDoc}  = r3lfe_format_cst:parse(InToks),
-    InComments   = [r3lfe_format_lexer:text(T)
-                    || T <- r3lfe_format_cst:comments(InDoc)],
-    {ok, OutIO}  = r3lfe_formatter:format(Input),
-    OutBin       = iolist_to_binary(OutIO),
-    {ok, OutToks} = r3lfe_format_lexer:tokens(OutBin),
-    {ok, OutDoc}  = r3lfe_format_cst:parse(OutToks),
-    OutComments   = [r3lfe_format_lexer:text(T)
-                     || T <- r3lfe_format_cst:comments(OutDoc)],
+    {ok, InToks} = lfmt_fezzik_lexer:tokens(Input),
+    {ok, InDoc}  = lfmt_fezzik_cst:parse(InToks),
+    InComments   = [lfmt_fezzik_lexer:text(T)
+                    || T <- lfmt_fezzik_cst:comments(InDoc)],
+    {ok, OutIO}  = lfmt_fezzik:format(Input),
+    OutBin       = fmt_output_bin(OutIO),
+    {ok, OutToks} = lfmt_fezzik_lexer:tokens(OutBin),
+    {ok, OutDoc}  = lfmt_fezzik_cst:parse(OutToks),
+    OutComments   = [lfmt_fezzik_lexer:text(T)
+                     || T <- lfmt_fezzik_cst:comments(OutDoc)],
     ?assertEqual(InComments, OutComments,
                  io_lib:format("comment-preservation failed for ~200p", [Input])).
 
@@ -1243,7 +1244,7 @@ fix1_dist_arg_trailing_comment(_Config) ->
     Src = <<"(call mod fun ; trailing\n  arg1 arg2)">>,
     %% Falls back: all RestChildren at C+2; trailing comment on fun forces close
     %% to own line since fun becomes last on its line (but there's a body here).
-    {ok, OutIO} = r3lfe_formatter:format(Src),
+    {ok, OutIO} = lfmt_fezzik:format(Src),
     Out = iolist_to_binary(OutIO),
     %% Verify the closing paren is present (not swallowed by comment)
     ?assert(binary:match(Out, <<")">>) =/= nomatch,
@@ -1254,7 +1255,7 @@ fix1_dist_arg_trailing_comment(_Config) ->
 fix1_dist_arg_leading_comment(_Config) ->
     %% Leading comment on the 2nd distinguished arg of `:` (N=2): fall back to body.
     Src = <<"(:\n  mod\n  ;; c\n  fun arg1 arg2)">>,
-    {ok, OutIO} = r3lfe_formatter:format(Src),
+    {ok, OutIO} = lfmt_fezzik:format(Src),
     Out = iolist_to_binary(OutIO),
     ?assert(binary:match(Out, <<")">>) =/= nomatch,
             "closing paren must survive leading comment on 2nd dist arg"),
@@ -1840,7 +1841,7 @@ defforms_nested_propagates(_Config) ->
     %% A defform inside another form makes the parent also break (infinity propagates).
     %% (list (defun f (x) x) ok) — the defun forces infinity, parent must break.
     Input = <<"(list (defun f (x) x) ok)">>,
-    {ok, OutIO} = r3lfe_formatter:format(Input),
+    {ok, OutIO} = lfmt_fezzik:format(Input),
     Out = iolist_to_binary(OutIO),
     %% Output must be multi-line (not a single flat line)
     ?assert(binary:match(Out, <<"\n">>) =/= nomatch,
@@ -1878,7 +1879,7 @@ data_map_comment_fallback(_Config) ->
     %% Map child with a trailing comment → falls back to element-per-line.
     %% Need \n before ) to prevent ) being consumed by the line comment.
     Input = <<"#m(key1 ; c\n   val1\n   key2\n   val2)">>,
-    {ok, OutIO} = r3lfe_formatter:format(Input),
+    {ok, OutIO} = lfmt_fezzik:format(Input),
     Out = iolist_to_binary(OutIO),
     %% Must be multi-line, all tokens intact
     ?assert(binary:match(Out, <<"key1">>) =/= nomatch),
@@ -1909,7 +1910,7 @@ data_binary_wide(_Config) ->
     assert_idempotent(Input),
     assert_token_preservation(Input),
     %% Verify it breaks (contains \n)
-    {ok, OutIO} = r3lfe_formatter:format(Input),
+    {ok, OutIO} = lfmt_fezzik:format(Input),
     Out = iolist_to_binary(OutIO),
     ?assert(binary:match(Out, <<"\n">>) =/= nomatch).
 
@@ -1919,7 +1920,7 @@ data_tuple_case_regression(_Config) ->
     All = list_to_binary(lists:join(" ", ["case" |
               [lists:duplicate(10, C) || C <- "abcdefg"]])),
     Input = <<"#(", All/binary, ")">>,
-    {ok, OutIO} = r3lfe_formatter:format(Input),
+    {ok, OutIO} = lfmt_fezzik:format(Input),
     Out = iolist_to_binary(OutIO),
     %% 'case' must be on the opener line (BP head), NOT indented at C+2 as specform body
     ?assert(binary:match(Out, <<"#(case ">>) =/= nomatch,
@@ -1933,7 +1934,7 @@ data_nested_map_in_list(_Config) ->
     assert_idempotent(Input),
     assert_token_preservation(Input),
     %% Verify the map pairs appear in output
-    {ok, OutIO} = r3lfe_formatter:format(Input),
+    {ok, OutIO} = lfmt_fezzik:format(Input),
     Out = iolist_to_binary(OutIO),
     ?assert(binary:match(Out, <<"alpha-key alpha-value">>) =/= nomatch).
 
@@ -2161,21 +2162,21 @@ conf_wide_sweep(_Config) ->
         fun(File, {S, C}) ->
             try
                 {ok, Bin} = file:read_file(File),
-                {ok, IO1} = r3lfe_formatter:format(Bin),
+                {ok, IO1} = lfmt_fezzik:format(Bin),
                 Out1 = iolist_to_binary(IO1),
-                {ok, IO2} = r3lfe_formatter:format(Out1),
+                {ok, IO2} = lfmt_fezzik:format(Out1),
                 Out2 = iolist_to_binary(IO2),
                 ?assertEqual(Out1, Out2,
                     io_lib:format("idempotency failed: ~s", [File])),
-                {ok, Toks1} = r3lfe_format_lexer:tokens(Bin),
-                {ok, Toks2} = r3lfe_format_lexer:tokens(Out1),
+                {ok, Toks1} = lfmt_fezzik_lexer:tokens(Bin),
+                {ok, Toks2} = lfmt_fezzik_lexer:tokens(Out1),
                 Trivia = [whitespace, newline, line_comment, block_comment],
-                Sig1 = lists:sort([{r3lfe_format_lexer:kind(T), r3lfe_format_lexer:text(T)}
+                Sig1 = lists:sort([{lfmt_fezzik_lexer:kind(T), lfmt_fezzik_lexer:text(T)}
                         || T <- Toks1,
-                           not lists:member(r3lfe_format_lexer:kind(T), Trivia)]),
-                Sig2 = lists:sort([{r3lfe_format_lexer:kind(T), r3lfe_format_lexer:text(T)}
+                           not lists:member(lfmt_fezzik_lexer:kind(T), Trivia)]),
+                Sig2 = lists:sort([{lfmt_fezzik_lexer:kind(T), lfmt_fezzik_lexer:text(T)}
                         || T <- Toks2,
-                           not lists:member(r3lfe_format_lexer:kind(T), Trivia)]),
+                           not lists:member(lfmt_fezzik_lexer:kind(T), Trivia)]),
                 %% A7·S5b carve-out: multiset comparison; sort catches add/drop/mutate.
                 ?assertEqual(Sig1, Sig2,
                     io_lib:format("token-preservation failed: ~s", [File])),
@@ -2250,7 +2251,7 @@ ab_nested_let_in_defun(_Config) ->
     Input = <<"(defun f (x) (let ((y (* x 2))) (+ y 1)))">>,
     assert_idempotent(Input),
     assert_token_preservation(Input),
-    {ok, IO} = r3lfe_formatter:format(Input),
+    {ok, IO} = lfmt_fezzik:format(Input),
     Out = iolist_to_binary(IO),
     ?assert(binary:match(Out, <<"\n">>) =/= nomatch,
             "nested let/defun must produce multi-line output").
@@ -2562,7 +2563,7 @@ sig_defun_non_last_dist_trail_comment_fallback(_Config) ->
     %% defform_n change path — the keyword + name MUST stay together.
     %% The key invariant: no swallowing of the arglist, and (defun alone is never ok.
     Input = <<"(defun star ; comment\n  (x)\n  (+ x 1))">>,
-    {ok, IO} = r3lfe_formatter:format(Input),
+    {ok, IO} = lfmt_fezzik:format(Input),
     Out = iolist_to_binary(IO),
     %% The arglist must NOT be swallowed by the comment — it must appear in output.
     ?assertNotEqual(nomatch, binary:match(Out, <<"(x)">>)),
@@ -2585,7 +2586,7 @@ sig_defun_keyword_not_alone(_Config) ->
         <<"(defmacro m ((x) `(f ,x)))">>
     ],
     lists:foreach(fun(Input) ->
-        {ok, IO} = r3lfe_formatter:format(Input),
+        {ok, IO} = lfmt_fezzik:format(Input),
         Out = iolist_to_binary(IO),
         Lines = binary:split(Out, <<"\n">>, [global, trim]),
         lists:foreach(fun(Line) ->
@@ -2727,7 +2728,7 @@ eh_whitespace_only(_Config) ->
 eh_comment_only_block(_Config) ->
     %% A file with only a block comment: preserved, idempotent.
     Src = <<"#| block comment |#">>,
-    {ok, IO} = r3lfe_formatter:format(Src),
+    {ok, IO} = lfmt_fezzik:format(Src),
     Out = iolist_to_binary(IO),
     ?assertEqual(<<"#| block comment |#\n">>, Out),
     assert_idempotent(Src).
@@ -2740,7 +2741,7 @@ eh_no_trailing_newline(_Config) ->
 eh_crlf_multiline(_Config) ->
     %% Multi-line CRLF input: output is LF-only.
     Src = <<"(foo\r\n  bar\r\n  baz)">>,
-    {ok, IO} = r3lfe_formatter:format(Src),
+    {ok, IO} = lfmt_fezzik:format(Src),
     Out = iolist_to_binary(IO),
     ?assertEqual(nomatch, binary:match(Out, <<"\r">>),
                  "output must contain no CR bytes"),
@@ -2750,31 +2751,31 @@ eh_unicode_string(_Config) ->
     %% UTF-8 string literal preserved verbatim; output is valid UTF-8.
     %% "日本語" = E6 97 A5 E6 9C AC E8 AA 9E
     Src = <<34, 16#E6, 16#97, 16#A5, 16#E6, 16#9C, 16#AC, 16#E8, 16#AA, 16#9E, 34>>,
-    {ok, IO} = r3lfe_formatter:format(Src),
+    {ok, IO} = lfmt_fezzik:format(Src),
     %% Formatter iolist may contain Unicode codepoints; use characters_to_binary.
     Out = unicode:characters_to_binary(IO, unicode, utf8),
     ?assert(binary:match(Out, <<16#E6, 16#97, 16#A5>>) =/= nomatch,
             "unicode bytes must be preserved"),
     %% Idempotency: pass 2 output must equal pass 1 output.
-    {ok, IO2} = r3lfe_formatter:format(Out),
+    {ok, IO2} = lfmt_fezzik:format(Out),
     Out2 = unicode:characters_to_binary(IO2, unicode, utf8),
     ?assertEqual(Out, Out2, "unicode string must be idempotent").
 
 eh_unicode_symbol(_Config) ->
     %% UTF-8 pipe-quoted symbol preserved; output is valid UTF-8.
     Src = <<$|, 16#E6, 16#97, 16#A5, 16#E6, 16#9C, 16#AC, $|>>,
-    {ok, IO} = r3lfe_formatter:format(Src),
+    {ok, IO} = lfmt_fezzik:format(Src),
     Out = unicode:characters_to_binary(IO, unicode, utf8),
     ?assert(binary:match(Out, <<16#E6, 16#97, 16#A5>>) =/= nomatch,
             "unicode bytes must be preserved"),
-    {ok, IO2} = r3lfe_formatter:format(Out),
+    {ok, IO2} = lfmt_fezzik:format(Out),
     Out2 = unicode:characters_to_binary(IO2, unicode, utf8),
     ?assertEqual(Out, Out2, "unicode symbol must be idempotent").
 
 eh_long_atom(_Config) ->
     %% A single atom longer than 80 chars: emitted as-is on its own line, no loop.
     LongAtom = list_to_binary(lists:duplicate(100, $a)),
-    {ok, IO} = r3lfe_formatter:format(LongAtom),
+    {ok, IO} = lfmt_fezzik:format(LongAtom),
     Out = iolist_to_binary(IO),
     ?assert(binary:match(Out, LongAtom) =/= nomatch,
             "long atom must appear verbatim"),
@@ -2783,7 +2784,7 @@ eh_long_atom(_Config) ->
 eh_long_string(_Config) ->
     %% A single string longer than 80 chars: emitted as-is on its own line, no loop.
     LongStr = iolist_to_binary([$", lists:duplicate(100, $x), $"]),
-    {ok, IO} = r3lfe_formatter:format(LongStr),
+    {ok, IO} = lfmt_fezzik:format(LongStr),
     Out = iolist_to_binary(IO),
     ?assert(byte_size(Out) > 100, "output must preserve the long string"),
     assert_idempotent(LongStr).
@@ -2791,13 +2792,13 @@ eh_long_string(_Config) ->
 eh_deep_nesting(_Config) ->
     %% 500 levels of nesting: no stack overflow, completes, idempotent.
     Deep = iolist_to_binary([lists:duplicate(500, "(a "), lists:duplicate(500, ")")]),
-    ?assertMatch({ok, _}, r3lfe_formatter:format(Deep)),
+    ?assertMatch({ok, _}, lfmt_fezzik:format(Deep)),
     assert_idempotent(Deep).
 
 eh_read_eval(_Config) ->
     %% #.(expr) read-eval form: does not crash (excluded from AST-equiv only).
     Src = <<"#.(+ 1 2)">>,
-    ?assertMatch({ok, _}, r3lfe_formatter:format(Src)),
+    ?assertMatch({ok, _}, lfmt_fezzik:format(Src)),
     assert_idempotent(Src).
 
 eh_large_file(_Config) ->
@@ -2811,7 +2812,7 @@ eh_large_file(_Config) ->
             ct:log("guard_SUITE.lfe not found, skipping large-file test");
         {ok, Bin} ->
             ct:log("guard_SUITE.lfe: ~p bytes", [byte_size(Bin)]),
-            ?assertMatch({ok, _}, r3lfe_formatter:format(Bin))
+            ?assertMatch({ok, _}, lfmt_fezzik:format(Bin))
     end.
 
 eh_blank_in_body(_Config) ->
@@ -2887,7 +2888,7 @@ fuzz_unbalanced(_Config) ->
         fun(Src) ->
             assert_no_crash(Src),
             %% Structurally broken forms should error, not succeed
-            case r3lfe_formatter:format(Src) of
+            case lfmt_fezzik:format(Src) of
                 {error, _} -> ok;
                 {ok, _}    -> ok  % lexer may accept partial forms
             end
@@ -2896,7 +2897,7 @@ fuzz_unbalanced(_Config) ->
 
 assert_no_crash(Bin) ->
     try
-        Result = r3lfe_formatter:format(Bin),
+        Result = lfmt_fezzik:format(Bin),
         ?assert(element(1, Result) =:= ok orelse element(1, Result) =:= error,
                 io_lib:format("format/1 returned unexpected: ~p", [Result]))
     catch
@@ -2933,7 +2934,7 @@ sweep_file(File) ->
         {error, _} ->
             skipped;
         {ok, Bin} ->
-            case r3lfe_formatter:format(Bin) of
+            case lfmt_fezzik:format(Bin) of
                 {error, _} ->
                     skipped;
                 {ok, IO} ->
@@ -2947,7 +2948,7 @@ sweep_file(File) ->
 
 sweep_oracles(File, Src, Out) ->
     %% Oracle 1: idempotency
-    case r3lfe_formatter:format(Out) of
+    case lfmt_fezzik:format(Out) of
         {ok, IO2} ->
             Out2 = unicode:characters_to_binary(IO2, unicode, utf8),
             ?assertEqual(Out, Out2,
@@ -2984,16 +2985,16 @@ sweep_oracles(File, Src, Out) ->
     end.
 
 sweep_sig_pairs(Bin) ->
-    {ok, Toks} = r3lfe_format_lexer:tokens(Bin),
+    {ok, Toks} = lfmt_fezzik_lexer:tokens(Bin),
     Trivia = [whitespace, newline, line_comment, block_comment],
-    [{r3lfe_format_lexer:kind(T), r3lfe_format_lexer:text(T)}
+    [{lfmt_fezzik_lexer:kind(T), lfmt_fezzik_lexer:text(T)}
      || T <- Toks,
-        not lists:member(r3lfe_format_lexer:kind(T), Trivia)].
+        not lists:member(lfmt_fezzik_lexer:kind(T), Trivia)].
 
 sweep_comments(Bin) ->
-    {ok, Toks} = r3lfe_format_lexer:tokens(Bin),
-    {ok, Doc}  = r3lfe_format_cst:parse(Toks),
-    [r3lfe_format_lexer:text(T) || T <- r3lfe_format_cst:comments(Doc)].
+    {ok, Toks} = lfmt_fezzik_lexer:tokens(Bin),
+    {ok, Doc}  = lfmt_fezzik_cst:parse(Toks),
+    [lfmt_fezzik_lexer:text(T) || T <- lfmt_fezzik_cst:comments(Doc)].
 
 %%====================================================================
 %% Regimes group (A7·S2b-1) — unit tests for regime/2
@@ -3001,42 +3002,42 @@ sweep_comments(Bin) ->
 
 %% Parse a binary source and return the first top-level CST node.
 parse_first(Src) ->
-    {ok, Toks} = r3lfe_format_lexer:tokens(Src),
-    {ok, Doc}  = r3lfe_format_cst:parse(Toks),
-    [Node | _] = r3lfe_format_cst:document_children(Doc),
+    {ok, Toks} = lfmt_fezzik_lexer:tokens(Src),
+    {ok, Doc}  = lfmt_fezzik_cst:parse(Toks),
+    [Node | _] = lfmt_fezzik_cst:document_children(Doc),
     Node.
 
 regime_case_canonical(_Config) ->
     Node = parse_first(<<"(case x (a 1))">>),
-    ?assertEqual(canonical, r3lfe_formatter:regime(Node, false)).
+    ?assertEqual(canonical, lfmt_fezzik:regime(Node, false)).
 
 regime_defun_canonical(_Config) ->
     Node = parse_first(<<"(defun f (x) x)">>),
-    ?assertEqual(canonical, r3lfe_formatter:regime(Node, false)).
+    ?assertEqual(canonical, lfmt_fezzik:regime(Node, false)).
 
 regime_map_canonical(_Config) ->
     Node = parse_first(<<"#m(a 1)">>),
-    ?assertEqual(canonical, r3lfe_formatter:regime(Node, false)).
+    ?assertEqual(canonical, lfmt_fezzik:regime(Node, false)).
 
 regime_plain_call_break_preserving(_Config) ->
     Node = parse_first(<<"(foo a b)">>),
-    ?assertEqual(break_preserving, r3lfe_formatter:regime(Node, false)).
+    ?assertEqual(break_preserving, lfmt_fezzik:regime(Node, false)).
 
 regime_tuple_break_preserving(_Config) ->
     Node = parse_first(<<"#(a b)">>),
-    ?assertEqual(break_preserving, r3lfe_formatter:regime(Node, false)).
+    ?assertEqual(break_preserving, lfmt_fezzik:regime(Node, false)).
 
 %% InData=true forces break_preserving even for a known specform head.
 regime_indata_true_forces_break_preserving(_Config) ->
     Node = parse_first(<<"(if x y z)">>),
-    ?assertEqual(break_preserving, r3lfe_formatter:regime(Node, true)).
+    ?assertEqual(break_preserving, lfmt_fezzik:regime(Node, true)).
 
 %% Inside a quasiquote, the unquoted sub-form sees InData=false (code context).
 %% Test: the `(if x y)` under unquote → InData=false → canonical.
 regime_unquote_inside_quasiquote_code(_Config) ->
     %% Parse `(if x y z)` in isolation with InData=false (as unquote would deliver).
     Node = parse_first(<<"(if x y z)">>),
-    ?assertEqual(canonical, r3lfe_formatter:regime(Node, false)).
+    ?assertEqual(canonical, lfmt_fezzik:regime(Node, false)).
 
 %%====================================================================
 %% cons_dot group (A7·S1) — improper lists / cons-dot

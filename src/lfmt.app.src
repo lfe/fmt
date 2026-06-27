@@ -1,6 +1,6 @@
-{application, fmt, [
+{application, lfmt, [
     {description, "A code formatter for LFE"},
-    {vsn, "0.1.0"},
+    {vsn, "0.3.0"},
     {registered, []},
     {applications, [
         kernel,
@@ -9,5 +9,5 @@
     {env, []},
     {modules, []},
     {licenses, ["Apache-2.0"]},
-    {links, []}
+    {links, [{"GitHub", "https://github.com/lfe/fmt"}]}
  ]}.

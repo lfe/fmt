@@ -155,7 +155,7 @@ parse_rules([Bad | _], _Registry) ->
     error({malformed_rule, Bad}).
 
 base_rules_path() ->
-    filename:join(code:priv_dir(fmt), ?RULES_FILE).
+    filename:join(code:priv_dir(lfmt), ?RULES_FILE).
 
 %%%-------------------------------------------------------------------
 %%% Lowering: form -> {id, builder}

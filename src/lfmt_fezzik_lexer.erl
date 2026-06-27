@@ -1,7 +1,7 @@
 %%%% Lossless, comment-preserving tokenizer for the LFE source formatter.
 %%%% Unlike lfe_scan, this keeps every comment and every whitespace character so
 %%%% the formatter can preserve them. See docs/design/022-arc1-lexer.md.
--module(r3lfe_format_lexer).
+-module(lfmt_fezzik_lexer).
 
 -export([tokens/1, to_iolist/1, kind/1, text/1, line/1, col/1]).
 
