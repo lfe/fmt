@@ -1,5 +1,5 @@
 #!/usr/bin/env escript
-%%! -pa _build/default/lib/fmt/ebin -pa _build/test/lib/fmt/ebin -pa _build/test/lib/fmt/test
+%%! -pa _build/default/lib/lfmt/ebin -pa _build/test/lib/lfmt/ebin -pa _build/test/lib/lfmt/test
 %%% -*- erlang -*-
 %%%
 %%% pe_oracle — the slice8 differential-oracle harness.

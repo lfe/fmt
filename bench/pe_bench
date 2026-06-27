@@ -1,5 +1,5 @@
 #!/usr/bin/env escript
-%%! -pa _build/default/lib/fmt/ebin -pa _build/test/lib/fmt/ebin -pa _build/test/lib/fmt/test -pa _build/test/lib/lfe/ebin
+%%! -pa _build/default/lib/lfmt/ebin -pa _build/test/lib/lfmt/ebin -pa _build/test/lib/lfmt/test -pa _build/test/lib/lfe/ebin
 %%% -*- erlang -*-
 %%%
 %%% pe_bench — the experiment harness for arc1-poc.
