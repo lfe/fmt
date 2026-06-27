@@ -2156,6 +2156,10 @@ conf_wide_sweep(_Config) ->
     %% Files with encoding errors or lexer errors are skipped (they exist in _build).
     %% A7S1 (fmt import): discovery re-pointed onto the `lfe` test-dep corpus
     %% (see integration_files/0). Oracle body below is unchanged.
+    %% A1S1 (v0.4.0 hygiene): flatten formatter output with fmt_output_bin
+    %% (unicode-safe), not iolist_to_binary — the latter throws on the >127
+    %% codepoints multibyte sources produce, which the try caught and silently
+    %% counted as "skipped". The 2 multibyte files are now actually exercised.
     AllFiles = integration_files() ++ [tq_corpus_file()],
     ct:log("Wide sweep over ~p .lfe files", [length(AllFiles)]),
     {Skipped, Checked} = lists:foldl(
@@ -2163,9 +2167,9 @@ conf_wide_sweep(_Config) ->
             try
                 {ok, Bin} = file:read_file(File),
                 {ok, IO1} = lfmt_fezzik:format(Bin),
-                Out1 = iolist_to_binary(IO1),
+                Out1 = fmt_output_bin(IO1),
                 {ok, IO2} = lfmt_fezzik:format(Out1),
-                Out2 = iolist_to_binary(IO2),
+                Out2 = fmt_output_bin(IO2),
                 ?assertEqual(Out1, Out2,
                     io_lib:format("idempotency failed: ~s", [File])),
                 {ok, Toks1} = lfmt_fezzik_lexer:tokens(Bin),
