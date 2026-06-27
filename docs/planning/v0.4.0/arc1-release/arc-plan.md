@@ -114,6 +114,15 @@ slice ledgers `A1S<slice>-<row>`.
 
 ## Version History
 
+- **v1.4 — 2026-06-27** (surfaced by **slice 2** close/bubble-up). `slice2-engine-api`
+  delivered the public API (`lfmt:new/1` + `lfmt_engine` behaviour + dispatch;
+  `lfmt_fezzik` conforms) as a thin layer, engine internals untouched; ct 283
+  green. **Packaging note for slice 3:** the hex tarball must now also include
+  `src/lfmt.erl`, `src/lfmt_engine.erl`, and **`src/lfmt.hrl`** (alongside the
+  `lfmt_fezzik*` set + `lfmt_fezzik.hrl`). Two flagged-but-sanctioned CC choices
+  recorded in the slice ledger: `new/1` raises (constructor); `lfmt_fezzik:format/2`
+  normalises `chardata()` → binary before delegating (honest contract without
+  touching the lexer). No re-sequencing.
 - **v1.3 — 2026-06-27** (operator direction, before the hex release). **Inserted
   a new `slice2-engine-api`** — the multi-engine public API (shared `#lfmt_opts{}`
   record, `lfmt_engine` behaviour, `lfmt:new/1` + `lfmt:format/1,2` dispatch,
