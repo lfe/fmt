@@ -2,7 +2,9 @@
 %%%% Pipeline: lfmt_fezzik_lexer -> lfmt_fezzik_cst -> render -> iolist.
 -module(lfmt_fezzik).
 
--export([format/1]).
+-behaviour(lfmt_engine).
+
+-export([format/1, format/2]).
 
 %% regime/2 exported for unit testing only (re-exported from lfmt_fezzik_util).
 -ifdef(TEST).
@@ -28,6 +30,19 @@ format(Input) ->
             end;
         {error, _} = Err ->
             Err
+    end.
+
+%% lfmt_engine behaviour callback. 0.4.0 opts carry only the engine selector
+%% (consumed by lfmt:format/2 before dispatch), so there is no fezzik-specific
+%% option to read yet. format/1's domain is binary()|string() (the lexer's), so
+%% normalise the generic chardata() the behaviour accepts to a UTF-8 binary
+%% first — this keeps fezzik honest about the contract without touching the
+%% engine internals. (When fezzik honours an option, e.g. width, read it here.)
+-spec format(lfmt:opts(), unicode:chardata()) -> {ok, iolist()} | {error, term()}.
+format(_Opts, Source) ->
+    case unicode:characters_to_binary(Source) of
+        Bin when is_binary(Bin) -> format(Bin);
+        _ -> {error, {invalid_encoding, Source}}
     end.
 
 
